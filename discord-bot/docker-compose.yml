@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: azure
+      POSTGRES_USER: azure
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes: [azure-postgres:/var/lib/postgresql/data]
+    healthcheck: { test: [CMD-SHELL, "pg_isready -U azure"], interval: 5s, timeout: 3s, retries: 20 }
+  redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [azure-redis:/data]
+    healthcheck: { test: [CMD, redis-cli, ping], interval: 5s, timeout: 3s, retries: 20 }
+  azure:
+    build: .
+    init: true
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://azure:${POSTGRES_PASSWORD}@postgres:5432/azure
+      REDIS_URL: redis://redis:6379
+      HTTP_HOST: 0.0.0.0
+    ports: ["3000:3000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck: { test: [CMD, wget, -qO-, http://localhost:3000/ready], interval: 10s, timeout: 3s, retries: 10 }
+    stop_grace_period: 20s
+volumes: { azure-postgres: {}, azure-redis: {} }

@@ -1,0 +1,8 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ModelRouter } from '../src/agent/model.js';
+const profile=(id,quality=0.5)=>({id,endpoint:'https://models.invalid/v1',model:'configured',capabilities:['planning'],contextWindow:10000,quality,latencyMs:100,inputCostPerMillion:1,outputCostPerMillion:1});
+const ok=(text='{}')=>({ok:true,json:async()=>({choices:[{message:{content:text}}],usage:{prompt_tokens:10,completion_tokens:5}})});
+test('router scores capability/context and records usage',async()=>{let used;const r=new ModelRouter([profile('low',.2),profile('high',.9)],{fetch:async()=>ok(),recordUsage:async(u)=>used=u});const out=await r.complete({capability:'planning',contextTokens:100,messages:[]});assert.equal(out.profileId,'high');assert.equal(used.profileId,'high');});
+test('router falls back to a distinct profile',async()=>{const calls=[];const r=new ModelRouter([profile('a',.9),profile('b',.8)],{maxRetries:1,fetch:async(_u,o)=>{calls.push(JSON.parse(o.body).model);return calls.length===1?{ok:false,status:503}:ok('done')}});assert.equal((await r.complete({capability:'planning',contextTokens:1,messages:[]})).content,'done');assert.equal(calls.length,2);});
+test('circuit breaker opens after threshold',async()=>{const r=new ModelRouter([profile('a')],{failureThreshold:1,maxRetries:0,fetch:async()=>({ok:false,status:500})});await assert.rejects(r.complete({capability:'planning',contextTokens:1,messages:[]}));assert.equal(r.snapshot().a.circuitOpen,true);await assert.rejects(r.complete({capability:'planning',contextTokens:1,messages:[]}),/No healthy/);});

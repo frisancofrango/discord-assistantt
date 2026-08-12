@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { evaluatePolicy } from '../src/foundation/policy.js';
+const actor = { authenticated: true, guildMember: true, permissions: ['BanMembers'] };
+test('forbidden behavior is always denied', () => assert.equal(evaluatePolicy({ domain:'marketing', autonomy:'autopilot', risk:'low', behavior:'unsolicited_spam', actor, consent:true }).reason, 'forbidden_behavior'));
+test('advisor can inspect', () => assert.equal(evaluatePolicy({ domain:'research', autonomy:'advisor', risk:'read', actor }).allowed, true));
+test('operator high risk requires approval', () => assert.equal(evaluatePolicy({ domain:'moderation', autonomy:'operator', risk:'high', actor }).requiresApproval, true));
+test('approved authorized moderation is allowed', () => assert.equal(evaluatePolicy({ domain:'moderation', autonomy:'operator', risk:'high', actor, requiredPermissions:['BanMembers'], approval:{status:'approved'} }).allowed, true));
+test('Discord permission is enforced', () => assert.equal(evaluatePolicy({ domain:'moderation', autonomy:'autopilot', risk:'low', actor, requiredPermissions:['Administrator'] }).reason, 'missing_discord_permission'));
+test('budget overspend is denied', () => assert.equal(evaluatePolicy({ domain:'research', autonomy:'autopilot', risk:'low', actor, budget:{spent:9,cost:2,limit:10} }).reason, 'budget_exceeded'));
+test('deployment remains owner gated', () => assert.equal(evaluatePolicy({ domain:'coding', autonomy:'developer', risk:'high', actor, deployment:true, approval:{status:'approved'} }).reason, 'code_deployment_owner_approval'));

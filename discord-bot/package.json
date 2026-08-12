@@ -1,0 +1,24 @@
+{
+  "name": "azure-discord-bot",
+  "version": "1.1.0",
+  "description": "Azure production Discord server operating system.",
+  "type": "module",
+  "engines": { "node": ">=24.17.0" },
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js",
+    "migrate": "node scripts/migrate.js",
+    "check": "node --check src/index.js && node --check src/foundation/repositories.js && node --check src/foundation/policy.js && node --check src/agent/model.js && node --check src/agent/planner.js && node --check src/agent/orchestrator.js && node --check src/agent/research.js && node --check src/agent/code-worker.js && node --check src/discord/gateway-runtime.js && node --check src/discord/tool-definitions.js && node --check src/discord/tool-runtime.js && node --check src/discord/context.js && node --check src/discord/event-store.js && node --check src/autonomy/proposal.js && node --check src/autonomy/approval.js && node --check src/autonomy/execution.js && node --check src/autonomy/rollback.js && node --check src/autonomy/store.js && node --check src/autonomy/ui.js && node --check src/commands/task.js && node --check src/commands/server.js && node --check src/native/core.js && node --check src/native/runtime.js && node --check src/native/tickets.js && node --check src/native/verification.js && node --check src/native/commerce.js && node --check src/native/moderation.js && node --check src/native/marketing.js && node --check src/native/analytics.js",
+    "test": "node --test --test-concurrency=1"
+  },
+  "dependencies": {
+    "bullmq": "^5.58.5",
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.4.5",
+    "ioredis": "^5.7.0",
+    "pg": "^8.16.3",
+    "pino": "^9.9.4",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": { "pg-mem": "^3.0.5" }
+}
