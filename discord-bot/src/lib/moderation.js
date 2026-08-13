@@ -1,5 +1,5 @@
-import { config } from '../config.js';
-import { panel, V2, THEME } from '../ui/theme.js';
+import { config, THEME } from '../config.js';
+import { panel, V2 } from '../ui/theme.js';
 
 /**
  * Post a moderation action to the configured mod-log channel.

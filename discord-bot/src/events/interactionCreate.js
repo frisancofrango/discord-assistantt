@@ -6,7 +6,7 @@ import { logAction, fail } from '../lib/moderation.js';
 import { withCorrelation, correlationId } from '../foundation/logger.js';
 import { evaluatePolicy } from '../foundation/policy.js';
 import { hashApprovalToken } from '../autonomy/proposal.js';
-import { decisionPanel, progressPanel, receiptPanel } from '../autonomy/ui.js';
+import { decisionPanel, progressPanel, receiptPanel, diffPanel } from '../autonomy/ui.js';
 
 export default {
   name: Events.InteractionCreate,
@@ -40,6 +40,7 @@ async function handleButton(interaction, client) {
   const [action, arg, token] = interaction.customId.split(':');
   if (action === 'azp') return handleProposalDecision(interaction, client, arg, token);
   if (action === 'azr') return handleRollback(interaction, client, arg, token);
+  if (action === 'adm') return handleAdminButton(interaction, client, arg, token);
 
   switch (action) {
     case 'buy':
@@ -79,6 +80,8 @@ async function handleProposalDecision(interaction, client, action, token) {
   const autonomy=client.runtime.autonomy, grant=await autonomy.store.findApprovalToken(hashApprovalToken(token,autonomy.config.approvalTokenPepper));
   if(!grant)return interaction.update(decisionPanel('EXPIRED','This approval is invalid or expired.'));
   const proposal=autonomy.hydrate(await autonomy.store.getProposal(grant.proposal_id));
+  if(action==='diff')return interaction.reply({...diffPanel(proposal),ephemeral:true});
+  if(action==='close')return interaction.update(decisionPanel('CLOSED','Diff dismissed.'));
   const actor={id:interaction.user.id,guildId:interaction.guildId,authenticated:true,bot:interaction.user.bot,isOwner:interaction.guild?.ownerId===interaction.user.id,permissions:interaction.memberPermissions?.toArray?.()??[]};
   const map={all:'approve_all',partial:'approve_partial',reject:'reject',changes:'request_changes'},decisionName=map[action];
   if(!decisionName)return;
@@ -90,6 +93,22 @@ async function handleProposalDecision(interaction, client, action, token) {
   }catch(error){return interaction.update(decisionPanel(error.escalation?'ESCALATION REQUIRED':'BLOCKED',error.message));}
 }
 async function handleRollback(interaction,client,mode,executionId){if(interaction.guild?.ownerId!==interaction.user.id)return interaction.reply({...decisionPanel('BLOCKED','Only the server owner can roll back this workflow.'),ephemeral:true});await interaction.update(progressPanel({goal:'Rollback',status:'running',stage:'compensation',completed:0,total:1}));const result=await client.runtime.autonomy.rollback.rollback({executionId,actor:{id:interaction.user.id,guildId:interaction.guildId,authenticated:true,isOwner:true},full:mode==='full',targetStage:mode==='full'?null:Number(mode)});return interaction.editReply(receiptPanel(result.receipt));}
+
+async function handleAdminButton(interaction, client, arg, token) {
+  if (interaction.guild?.ownerId !== interaction.user.id) return interaction.reply({ content:'Only the server owner can use the Azure console.', ephemeral:true });
+  if (arg === 'close') return interaction.update({ flags: V2, components:[panel({ title:'AZURE · CONSOLE CLOSED', body:'Panel dismissed.' })] });
+  if (arg === 'wipe') {
+    const removed = await client.runtime.memory.forgetAll({ guildId: interaction.guildId });
+    return interaction.update({ flags: V2, components:[panel({ title:'MEMORY WIPED', body:`Removed ${removed.removed} semantic memory row(s) for this server.` })] });
+  }
+  if (arg === 'refresh') {
+    const { renderOwnerView } = await import('../commands/admin.js');
+    const view = await renderOwnerView(client, interaction.guildId, token);
+    if (view.error) return interaction.update(decisionPanel('ERROR', view.error));
+    return interaction.update(view.panel);
+  }
+  return;
+}
 
 // ---- Sales flow ----------------------------------------------------------
 

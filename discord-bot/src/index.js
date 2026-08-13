@@ -11,6 +11,8 @@ import { ApprovalService } from './autonomy/approval.js';
 import { SafeWorkflowExecutor } from './autonomy/execution.js';
 import { RollbackService } from './autonomy/rollback.js';
 import { createNativeRuntime } from './native/runtime.js';
+import { EmbeddingClient } from './memory/embeddings.js';
+import { SemanticMemoryService } from './memory/store.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const logger = createLogger({ level: config.logLevel, base: { environment: config.env } });
@@ -59,7 +61,7 @@ try {
     const listener = (...args) => event.execute(...args, client);
     event.once ? client.once(event.name, listener) : client.on(event.name, listener);
   }
-  discordRuntime = createDiscordRuntime({ client, runtime, config, logger });
+  discordRuntime = createDiscordRuntime({ client, runtime, config, logger, memory:runtime.memory });
   client.discordRuntime = discordRuntime;
   const autonomyStore = new PostgresAutonomyStore(runtime.db);
   const snapshotReader = async (guildId) => (await discordRuntime.tools.invoke('guild.snapshot', { guildId }, { client, db:runtime.db, idempotencyKey:`workflow:snapshot:${guildId}:${Date.now()}`, autonomy:'advisor', actor:{authenticated:true,guildMember:true,isOwner:true,permissions:[]} })).output.snapshot;
@@ -67,9 +69,19 @@ try {
   const executor = new SafeWorkflowExecutor({ store:autonomyStore, tools:discordRuntime.tools, snapshotReader, permissionResolver, maxSnapshotAgeMs:config.autonomy.snapshotMaxAgeMs, concurrency:config.autonomy.concurrency });
   const rollback = new RollbackService({ store:autonomyStore, tools:discordRuntime.tools, snapshotReader, maxSnapshotAgeMs:config.autonomy.snapshotMaxAgeMs });
   runtime.autonomy = { config:config.autonomy, store:autonomyStore, hydrate:hydrateProposal, approvals:new ApprovalService({store:autonomyStore,pepper:config.autonomy.approvalTokenPepper,ttlMs:config.autonomy.approvalTtlMs}), executor, rollback };
+  runtime.memory = new SemanticMemoryService({ db:runtime.db, embedder:new EmbeddingClient({ baseUrl:config.embeddings.baseUrl, apiKey:config.embeddings.apiKey, model:config.embeddings.model, dimensions:config.embeddings.dimensions, logger }), logger, searchLimit:config.memory.searchLimit });
   runtime.native = createNativeRuntime({ db:runtime.db, queue:runtime.queue, tools:discordRuntime.tools, config, logger, client });
   if (runtime.state.database && runtime.state.redis) await runtime.native.start();
   await client.login(config.token);
+  if (config.discord.deployCommandsOnStart && config.clientId) {
+    (async () => {
+      try {
+        const { deployCommands } = await import('./deploy-commands.js');
+        const result = await deployCommands({ token: config.token, clientId: config.clientId, guildId: config.discord.guildId, logger });
+        logger.info({ count: result.count, target: result.target }, 'slash commands deployed on start');
+      } catch (err) { logger.error({ err }, 'slash command deployment on start failed'); }
+    })();
+  }
   if (runtime.state.database) executor.recover(async(id)=>hydrateProposal(await autonomyStore.getProposal(id)),async(row)=>({id:row.metadata?.actorId,guildId:row.guild_discord_id,authenticated:true,isOwner:true,permissions:await permissionResolver(row.guild_discord_id)})).catch((err)=>logger.error({err},'safe workflow recovery failed'));
 } catch (err) {
   logger.fatal({ err }, 'Azure startup failed');

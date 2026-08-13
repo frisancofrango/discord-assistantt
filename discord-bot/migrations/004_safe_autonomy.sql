@@ -17,7 +17,7 @@ CREATE TABLE proposal_decisions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), proposal_id uuid NOT NULL REFERENCES proposals ON DELETE CASCADE,
   proposal_revision integer NOT NULL, actor_discord_id text NOT NULL, guild_discord_id text NOT NULL,
   decision text NOT NULL CHECK(decision IN ('approve_all','approve_partial','reject','request_changes')),
-  approved_step_ids text[] NOT NULL DEFAULT '{}', reason text, authorization jsonb NOT NULL DEFAULT '{}',
+  approved_step_ids text[] NOT NULL DEFAULT '{}', reason text, authorization_json jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE workflow_executions (

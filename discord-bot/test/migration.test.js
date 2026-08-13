@@ -19,3 +19,9 @@ test('safe autonomy migration persists proposals, grants, execution, budgets and
   assert.match(sql,/token_hash text UNIQUE NOT NULL/i);
   assert.match(sql,/UNIQUE\(execution_id,step_key\)/i);
 });
+test('semantic memory migration enables pgvector and indexes embeddings', async () => {
+  const sql = await readFile(new URL('../migrations/006_semantic_memory.sql', import.meta.url), 'utf8');
+  assert.match(sql, /CREATE EXTENSION IF NOT EXISTS vector/i);
+  for (const constraint of ['semantic_memories','content_hash','embedding vector(768)','vector_cosine_ops']) assert.match(sql, new RegExp(constraint.replace(/[()]/g, '\\$&'), 'i'), constraint);
+  assert.match(sql, /UNIQUE\(guild_id, user_id, content_hash\)/i);
+});

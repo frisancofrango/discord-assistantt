@@ -21,7 +21,7 @@ Azure is an agentic Discord server operating system. It converts owner goals int
 - **Model router** — capability-aware selection, fallback, cost/latency/quality scoring, circuit breakers.
 - **Tool runtime** — typed Discord, research, code, filesystem, and internal business tools.
 - **Policy engine** — RBAC/ABAC, autonomy domains, risk classification, budgets, approvals, rate limits.
-- **Memory service** — exact recent turns, conversations, summaries, durable facts, preferences, entities, semantic retrieval.
+- **Memory service** — exact recent turns, conversations, summaries, durable facts, preferences, entities, and semantic retrieval. `semantic_memories` (pgvector) stores Nomic Embed Text vectors; context assembly retrieves via cosine search (RAG). See `docs/SEMANTIC_MEMORY.md`.
 - **Job workers** — durable execution through Redis/BullMQ with leases, retry policy, cancellation, and progress events.
 - **PostgreSQL** — source of truth for state, plans, evidence, audit, tickets, inventory, orders, warnings, and analytics.
 - **Sandbox worker** — isolated research/code workspace with allowlisted network and resource budgets.

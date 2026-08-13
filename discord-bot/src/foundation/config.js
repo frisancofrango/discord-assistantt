@@ -3,13 +3,16 @@ import { z } from 'zod';
 
 const parseBool = (defaultValue) => z.enum(['true', 'false']).default(defaultValue).transform((v) => v === 'true');
 const optionalBool = z.enum(['true', 'false']).transform((v) => v === 'true').optional();
+/** Optional ID env vars: empty strings are treated as unset. */
+const optionalId = z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional());
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   DISCORD_TOKEN: z.string().min(1).optional(),
-  CLIENT_ID: z.string().min(1).optional(),
-  GUILD_ID: z.string().min(1).optional(),
-  MOD_LOG_CHANNEL_ID: z.string().min(1).optional(),
+  CLIENT_ID: optionalId,
+  GUILD_ID: optionalId,
+  MOD_LOG_CHANNEL_ID: optionalId,
+  DEPLOY_COMMANDS_ON_START: parseBool('false'),
   DATABASE_URL: z.string().url().default('postgresql://azure:azure@localhost:5432/azure'),
   REDIS_URL: z.string().url().default('redis://localhost:6379'),
   HTTP_HOST: z.string().default('0.0.0.0'),
@@ -32,6 +35,12 @@ const schema = z.object({
   CODE_WORKSPACE_ROOT: z.string().default('.'),
   CODE_VALIDATION_COMMANDS_JSON: z.string().default('["npm test","npm run check"]'),
   CODE_COMMAND_TIMEOUT_MS: z.coerce.number().int().min(1000).max(1800000).default(120000),
+  EMBED_BASE_URL: z.string().url().default('https://api.nomic.ai/v1'),
+  EMBED_API_KEY: z.string().optional(),
+  EMBED_MODEL: z.string().default('nomic-embed-text-v1.5'),
+  EMBED_DIMENSIONS: z.coerce.number().int().min(64).max(4096).default(768),
+  MEMORY_SEARCH_LIMIT: z.coerce.number().int().min(1).max(50).default(8),
+  MEMORY_INGESTION: parseBool('true'),
   DISCORD_CONTEXT_TOKENS: z.coerce.number().int().min(1000).max(100000).default(6000),
   DISCORD_CONTEXT_MESSAGES: z.coerce.number().int().min(5).max(200).default(30),
   ENGAGEMENT_COOLDOWN_MS: z.coerce.number().int().min(1000).max(3600000).default(45000),
@@ -46,8 +55,8 @@ const schema = z.object({
   TICKET_SLA_MINUTES: z.coerce.number().int().min(1).max(10080).default(60),
   VERIFICATION_TTL_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   VERIFICATION_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
-  VERIFIED_ROLE_ID: z.string().optional(),
-  QUARANTINE_ROLE_ID: z.string().optional(),
+  VERIFIED_ROLE_ID: optionalId,
+  QUARANTINE_ROLE_ID: optionalId,
   INVENTORY_RESERVATION_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   ACCEPTABLE_USE_VERSION: z.string().default('1'),
   MARKETING_MAX_RATE_PER_MINUTE: z.coerce.number().int().min(1).max(100).default(30),
@@ -74,7 +83,7 @@ export function loadConfig(env = process.env) {
   if (!Array.isArray(modelProfiles) || !Array.isArray(validationCommands)) throw new ConfigurationError([{ path: ['MODEL_PROFILES_JSON'], message: 'expected JSON arrays' }]);
   return Object.freeze({
     env: raw.NODE_ENV, logLevel: raw.LOG_LEVEL,
-    discord: Object.freeze({ token: raw.DISCORD_TOKEN ?? null, clientId: raw.CLIENT_ID ?? null, guildId: raw.GUILD_ID ?? null, modLogChannelId: raw.MOD_LOG_CHANNEL_ID ?? null, contextTokens: raw.DISCORD_CONTEXT_TOKENS, contextMessages: raw.DISCORD_CONTEXT_MESSAGES, engagementCooldownMs: raw.ENGAGEMENT_COOLDOWN_MS, passiveThreshold: raw.ENGAGEMENT_PASSIVE_THRESHOLD }),
+    discord: Object.freeze({ token: raw.DISCORD_TOKEN ?? null, clientId: raw.CLIENT_ID ?? null, guildId: raw.GUILD_ID ?? null, modLogChannelId: raw.MOD_LOG_CHANNEL_ID ?? null, deployCommandsOnStart: raw.DEPLOY_COMMANDS_ON_START, contextTokens: raw.DISCORD_CONTEXT_TOKENS, contextMessages: raw.DISCORD_CONTEXT_MESSAGES, engagementCooldownMs: raw.ENGAGEMENT_COOLDOWN_MS, passiveThreshold: raw.ENGAGEMENT_PASSIVE_THRESHOLD }),
     database: Object.freeze({ url: raw.DATABASE_URL, ssl: raw.DATABASE_SSL, runMigrations: raw.RUN_MIGRATIONS }),
     redis: Object.freeze({ url: raw.REDIS_URL, prefix: raw.QUEUE_PREFIX }),
     http: Object.freeze({ host: raw.HTTP_HOST, port: raw.HTTP_PORT }),
@@ -82,6 +91,8 @@ export function loadConfig(env = process.env) {
     models: Object.freeze({ profiles: modelProfiles, maxRetries: raw.MODEL_MAX_RETRIES, failureThreshold: raw.MODEL_FAILURE_THRESHOLD, circuitResetMs: raw.MODEL_CIRCUIT_RESET_MS, budgetUsd: raw.AGENT_BUDGET_USD }),
     research: Object.freeze({ maxBytes: raw.RESEARCH_MAX_BYTES, timeoutMs: raw.RESEARCH_TIMEOUT_MS, allowedTypes: raw.RESEARCH_ALLOWED_TYPES.split(',').map((v) => v.trim()), allowedHosts: raw.RESEARCH_ALLOWED_HOSTS.split(',').map((v) => v.trim()).filter(Boolean) }),
     code: Object.freeze({ workspaceRoot: raw.CODE_WORKSPACE_ROOT, validationCommands, commandTimeoutMs: raw.CODE_COMMAND_TIMEOUT_MS }),
+    embeddings: Object.freeze({ baseUrl: raw.EMBED_BASE_URL, apiKey: raw.EMBED_API_KEY ?? null, model: raw.EMBED_MODEL, dimensions: raw.EMBED_DIMENSIONS, enabled: Boolean(raw.EMBED_API_KEY) }),
+    memory: Object.freeze({ searchLimit: raw.MEMORY_SEARCH_LIMIT, ingestion: raw.MEMORY_INGESTION }),
     autonomy: Object.freeze({ tierCount: raw.AUTONOMY_TIER_COUNT, approvalTtlMs: raw.APPROVAL_TTL_MS, approvalTokenPepper: raw.APPROVAL_TOKEN_PEPPER, snapshotMaxAgeMs: raw.SNAPSHOT_MAX_AGE_MS, concurrency: raw.WORKFLOW_CONCURRENCY }),
     native: Object.freeze({
       tickets: Object.freeze({ openLimit: raw.TICKET_OPEN_LIMIT, duplicateMinutes: raw.TICKET_DUPLICATE_MINUTES, slaMinutes: raw.TICKET_SLA_MINUTES }),

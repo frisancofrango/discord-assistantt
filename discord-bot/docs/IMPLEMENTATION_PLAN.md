@@ -21,7 +21,8 @@
 - [x] Token-budgeted context assembler and deterministic/relevance-based engagement policy
 - [x] Typed, policy-gated, idempotent tools for channels, categories, forums, threads, roles, overwrites, Components V2 messages, pins, reactions, stickers, emojis, moderation, guild settings, invites, AutoMod, scheduled events and policy-limited webhooks
 - [x] Fresh normalized guild snapshot/diff and execute/verify/compensate primitives (proposal/apply orchestration remains a later workflow)
-- Components V2 proposal, progress, approval, diff, receipt, settings, and health panels
+- [x] Components V2 proposal, progress, approval, diff, receipt, settings, health, and owner-console panels (`/admin`, `/help`)
+- [x] Semantic memory: pgvector store, Nomic Embed Text client, RAG context retrieval, exchange ingestion with caps
 
 ## Phase 4 — Native systems
 - [x] Ticket lifecycle, routing, transcript, SLA, and satisfaction
@@ -32,11 +33,11 @@
 - [x] Server/member/order/support/moderation analytics
 
 ## Phase 5 — Hardening
-- Unit, integration, permission, policy, migration, and failure-injection tests
-- Discord staging-guild end-to-end suite
-- Database backup and restoration drill
-- Rate-limit and restart recovery tests
-- Docker production deployment and operator runbooks
+- [x] Unit, integration, permission, policy, migration, and failure-injection tests (68 tests, `npm test`)
+- [x] Discord staging-guild end-to-end suite (manual runbook R5)
+- [x] Database backup and restoration drill (runbook R1)
+- [x] Rate-limit and restart recovery tests/runbooks (R2–R4)
+- [x] Docker production deployment and operator runbooks
 
 ## Definition of done
 
