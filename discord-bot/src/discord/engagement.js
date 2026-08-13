@@ -4,7 +4,7 @@ export class EngagementPolicy {
   decide(input) {
     if(input.authorBot||input.webhookId) return this.#no('no_chatter_loops');
     if(input.selfAuthored) return this.#no('self_message');
-    const deterministic = input.isDM?'direct_message':input.mentionsAzure?'mention':input.repliesToAzure?'reply':input.activeTask?'active_task':input.ownerCommand?'owner_command':null;
+    const deterministic = input.isDM?'direct_message':input.mentionsAzure?'mention':input.repliesToAzure?'reply':input.activeTask?'active_task':input.ownerCommand?'owner_command':(input.azureRelevant&&!input.lowSignal)?'name_mention':null;
     const key=input.threadId??input.channelId??input.userId; const state=this.state.get(key)??{};
     if(deterministic) return this.#yes(deterministic,key,input,{typing:true});
     if(input.isEdit && !input.materialEdit) return this.#no('immaterial_edit');
