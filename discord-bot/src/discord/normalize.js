@@ -4,7 +4,19 @@ const iso = (value) => value ? new Date(value).toISOString() : null;
 const json = (value) => value?.toJSON?.() ?? value ?? null;
 const values = (collection) => collection ? [...collection.values?.() ?? collection] : [];
 const snowflakeTime = (id) => id && /^\d+$/.test(id) ? new Date(Number((BigInt(id) >> 22n) + 1420070400000n)).toISOString() : null;
-export const stableHash = (value) => createHash('sha256').update(JSON.stringify(value, Object.keys(value ?? {}).sort())).digest('hex');
+/** JSON replacer that survives discord.js BigInt snowflakes. */
+export const jsonSafeReplacer = (key, value) => {
+  if (typeof value === 'bigint') return value.toString();
+  if (value instanceof Map) return Object.fromEntries(value);
+  if (value instanceof Set) return [...value];
+  return value;
+};
+export const safeStringify = (value) => JSON.stringify(value, jsonSafeReplacer);
+export const stableHash = (value) => {
+  const allow = Object.keys(value ?? {}).sort();
+  const picked = Object.fromEntries(allow.map((k) => [k, value[k]]));
+  return createHash('sha256').update(safeStringify(picked)).digest('hex');
+};
 
 export function normalizeMessage(message, eventType = 'messageCreate') {
   const reference = message.reference ?? null;
