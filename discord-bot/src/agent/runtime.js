@@ -23,7 +23,7 @@ RULES:
       return response.content.replace(/\b(?:OpenAI|Anthropic|Gemini|GPT-[\w.-]+|Claude[\w .-]*)\b/gi,'the assistant runtime');
     } catch (err) {
       logger.error?.({err,reason:decision.reason},'conversation model call failed');
-      return 'I\u2019m alive, but my reasoning backend is unreachable right now, so I can\u2019t craft a full reply. Try me again in a minute.';
+      return 'I\u2019m alive \u2014 my brain is struggling right now, give me about 30 seconds and try again.';
     }
   }
   return {router,planner,research,code,orchestrator,converse,start:()=>orchestrator.start(),close:()=>orchestrator.close()};

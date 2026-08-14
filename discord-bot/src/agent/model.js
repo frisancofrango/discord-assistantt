@@ -84,12 +84,14 @@ export class ModelRouter {
       const file = join(dir, 'prompt.txt');
       return writeFile(file, prompt, 'utf8').then(() => new Promise((resolve, reject) => {
         const child = spawn('opencode', ['run', '--pure', '--format', 'json', '-m', profile.model, 'Follow the instructions in the attached prompt and answer directly.', '-f', file], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, CI: '1', NO_COLOR: '1' } });
-        let stdout = '', stderr = ''; const limit = 4 * 1024 * 1024;
-        child.stdout.on('data', (d) => stdout = (stdout + d).slice(-limit));
+        let stdout = '', stderr = ''; const limit = 4 * 1024 * 1024; let textSeen = false; let settled = false;
+        const settle = (fn, value) => { if (settled) return; settled = true; clearTimeout(firstTimer); clearTimeout(hardTimer); fn(value); };
+        child.stdout.on('data', (d) => { stdout = (stdout + d).slice(-limit); if (!textSeen && /"type":"text"/.test(d)) textSeen = true; });
         child.stderr.on('data', (d) => stderr = (stderr + d).slice(-limit));
-        const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} reject(new Error(`CLI model timed out after ${timeoutMs}ms`)); }, timeoutMs);
-        child.on('error', reject);
-        child.on('close', (code) => { clearTimeout(timer); rm(dir, { recursive: true, force: true }).catch(() => {}); if (code !== 0) reject(new Error(`opencode run exited ${code}: ${stderr.slice(-400)}`)); else resolve(stdout); });
+        const firstTimer = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} settle(reject, new Error(`CLI model produced no output within 30s`)); }, 30_000);
+        const hardTimer = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} settle(reject, new Error(`CLI model timed out after ${timeoutMs}ms`)); }, timeoutMs);
+        child.on('error', (err) => settle(reject, err));
+        child.on('close', (code) => { rm(dir, { recursive: true, force: true }).catch(() => {}); if (!textSeen) settle(reject, new Error('CLI model returned no text')); else if (code !== 0) settle(reject, new Error(`opencode run exited ${code}: ${stderr.slice(-400)}`)); else settle(resolve, stdout); });
       }));
     });
   }

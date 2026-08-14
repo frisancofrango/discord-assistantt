@@ -1,5 +1,5 @@
 const taskWords=/\b(azure|help|please|can you|could you|create|change|fix|moderate|summarize|explain|how|why|what|who|where|when|which|whose|organi[sz]e|restructure|set ?up|setup|manage|memory|remember|buy|sell|stock|product|order)\b/i;
-const complaint=/\b(not (?:as |that |really |so )?smart|dumb|useless|bad|wrong|terrible|jfc|suck(?:s|ed)?|bullshit|worst|disappointed|hate|annoying|frustrat|hardcoded|generic|crap)\b/i;
+const complaint=/\b(not (?:as |that |really |so )?smart|dumb|useless|bad|wrong|terrible|jfc|suck(?:s|ed)?|bullshit|worst|disappointed|hate|annoying|frustrat|hardcoded|generic|crap|wtf|stfu|fuck off|broken|slow)\b/i;
 export class EngagementPolicy {
   constructor({cooldownMs=45_000,passiveThreshold=0.5,followUpMs=150_000,now=()=>Date.now()}={}) { Object.assign(this,{cooldownMs,passiveThreshold,followUpMs,now}); this.state=new Map(); }
   decide(input) {

@@ -8,5 +8,5 @@ test('router falls back to a distinct profile',async()=>{const calls=[];const r=
 test('circuit breaker opens after threshold',async()=>{const r=new ModelRouter([profile('a')],{failureThreshold:1,maxRetries:0,fetch:async()=>({ok:false,status:500})});await assert.rejects(r.complete({capability:'planning',contextTokens:1,messages:[]}));assert.equal(r.snapshot().a.circuitOpen,true);await assert.rejects(r.complete({capability:'planning',contextTokens:1,messages:[]}),/No healthy/);});
 test('cli profile kind selects the CLI completion path (template rejected without running)', async () => {
   const r = new ModelRouter([{ ...profile('cli', 0.9), kind: 'cli', model: 'opencode/test' }], { maxRetries: 0 });
-  await assert.rejects(r.complete({ capability: 'planning', contextTokens: 1, messages: [] }), /opencode run exited|ENOENT/);
+  await assert.rejects(r.complete({ capability: 'planning', contextTokens: 1, messages: [] }), /CLI model produced no output|opencode run exited|ENOENT/);
 });
