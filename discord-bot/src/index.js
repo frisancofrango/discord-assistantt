@@ -35,7 +35,7 @@ async function shutdown(signal, exitCode = 0) {
     client?.destroy();
     await runtime?.close();
   } catch (err) { logger.error({ err }, 'shutdown error'); exitCode = 1; }
-  finally { clearTimeout(timer); process.exitCode = exitCode; }
+  finally { clearTimeout(timer); process.exitCode = exitCode; setTimeout(() => process.exit(exitCode), 2000); }
 }
 
 try {
