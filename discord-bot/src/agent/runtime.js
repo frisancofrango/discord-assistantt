@@ -19,7 +19,7 @@ RULES:
 - Memory: if asked what you remember, truthfully summarize context.userMemories and context.semanticMemories; say you remember this conversation and nothing else if empty. If the user asks to set up, change, organize, or clean the server, say Azure will prepare an approval proposal and give a one-sentence preview of what it would cover (channels/roles/perms are executed after approval).
 - Do not claim an action was completed without a verified tool receipt.`;
     try {
-      const build = (messages) => router.complete({ capability:'conversation', timeoutMs:180_000, contextTokens:context.estimatedTokens??Math.ceil(JSON.stringify(context).length/4), messages, temperature:0.2 });
+      const build = (messages) => router.complete({ capability:'conversation', timeoutMs:45_000, contextTokens:context.estimatedTokens??Math.ceil(JSON.stringify(context).length/4), messages, temperature:0.2 });
       const userMessage = { id:message.id, authorId:message.author.id, content:message.content, editedAt:message.editedAt };
       let response = await build([{role:'system',content:prompt},{role:'user',content:JSON.stringify({message:userMessage,context})}]);
       const leak = /(opencode|claude|gpt[- .]?[0-9]*|openai|anthropic|language model|software engineering assistant|an? (?:AI|artificial intelligence) assistant\b)/i;

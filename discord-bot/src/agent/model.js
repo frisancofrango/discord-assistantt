@@ -29,6 +29,7 @@ export class ModelRouter {
     this.health = new Map(this.profiles.map((p) => [p.id, { failures: 0, openedAt: 0, calls: 0, latencyMs: p.latencyMs }]));
     this.telemetry = options.telemetry ?? (() => {}); this.recordUsage = options.recordUsage ?? (async () => {});
     this.cliQueue = Promise.resolve();
+    this.pacingMs = options.pacingMs ?? 35_000; this.lastAttemptAt = 0;
   }
   candidates(request, excluded = new Set()) {
     const now = Date.now();
@@ -65,14 +66,19 @@ export class ModelRouter {
   }
   #completeCli(profile, request) {
     const run = () => {
-      const started = performance.now();
-      const prompt = request.messages.map((m) => `${m.role.toUpperCase()}:\n${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`).join('\n\n') + (request.json ? '\n\nIMPORTANT: Respond with ONLY valid JSON. No markdown fences, no prose, no commentary outside the JSON.' : '');
-      return this.#spawnCli(profile, prompt, request.timeoutMs ?? 120_000).then((raw) => {
-        let content = '';
-        for (const line of raw.split('\n')) { if (!line.trim()) continue; try { const e = JSON.parse(line); if (e.type === 'text' && typeof e.part?.text === 'string') content += e.part.text; } catch {} }
-        content = content.trim();
-        if (!content) throw new Error('CLI model returned no text');
-        return { content, usage: { latencyMs: Math.round(performance.now() - started), inputTokens: 0, outputTokens: Math.ceil(content.length / 4), costUsd: 0 } };
+      const since = this.lastAttemptAt ? Date.now() - this.lastAttemptAt : Infinity;
+      const wait = since < this.pacingMs ? this.pacingMs - since : 0;
+      return (wait > 0 ? new Promise((resolve) => setTimeout(resolve, wait)) : Promise.resolve()).then(() => {
+        this.lastAttemptAt = Date.now();
+        const started = performance.now();
+        const prompt = request.messages.map((m) => `${m.role.toUpperCase()}:\n${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`).join('\n\n') + (request.json ? '\n\nIMPORTANT: Respond with ONLY valid JSON. No markdown fences, no prose, no commentary outside the JSON.' : '');
+        return this.#spawnCli(profile, prompt, request.timeoutMs ?? 120_000).then((raw) => {
+          let content = '';
+          for (const line of raw.split('\n')) { if (!line.trim()) continue; try { const e = JSON.parse(line); if (e.type === 'text' && typeof e.part?.text === 'string') content += e.part.text; } catch {} }
+          content = content.trim();
+          if (!content) throw new Error('CLI model returned no text');
+          return { content, usage: { latencyMs: Math.round(performance.now() - started), inputTokens: 0, outputTokens: Math.ceil(content.length / 4), costUsd: 0 } };
+        });
       });
     };
     const p = this.cliQueue.then(run, run);

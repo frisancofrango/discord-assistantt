@@ -73,6 +73,13 @@ try {
   runtime.native = createNativeRuntime({ db:runtime.db, queue:runtime.queue, tools:discordRuntime.tools, config, logger, client });
   if (runtime.state.database && runtime.state.redis) await runtime.native.start();
   await client.login(config.token);
+  setInterval(() => {
+    const router = runtime?.agent?.router;
+    if (!router || Date.now() - (router.lastAttemptAt || 0) < 60_000) return;
+    router.complete({ capability: 'conversation', contextTokens: 300, timeoutMs: 25_000, messages: [{ role: 'system', content: 'You are Azure, a Discord server assistant. Reply with exactly: ok' }, { role: 'user', content: 'keepalive' }] })
+      .then(() => logger.info({ health: router.snapshot() }, 'model keepalive ok'))
+      .catch((err) => logger.warn({ err: err.message }, 'model keepalive failed'));
+  }, 120_000);
   if (config.discord.deployCommandsOnStart && config.clientId) {
     (async () => {
       try {
