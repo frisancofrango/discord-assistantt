@@ -67,6 +67,72 @@ export class ModelRouter {
       return { ok: false, error };
     }
   }
+  // Streaming completion: single best candidate (racing streams would multiply
+  // farm cost), yields token deltas through onDelta, returns final content like
+  // complete(). Any failure falls back to one non-stream complete() call.
+  async completeStream(request, onDelta) {
+    const profile = this.candidates(request)[0];
+    if (!profile) return this.complete(request);
+    const started = performance.now();
+    try {
+      let text = '';
+      if (profile.kind === 'http') {
+        const response = await this.fetch(`${profile.endpoint.replace(/\/$/, '')}/chat/completions`, { method: 'POST', signal: AbortSignal.timeout((request.timeoutMs ?? 60_000) + 15_000), headers: { 'content-type': 'application/json', ...(profile.apiKey ? { authorization: `Bearer ${profile.apiKey}` } : {}), ...profile.headers }, body: JSON.stringify({ model: profile.model, messages: request.messages, temperature: request.temperature ?? 0.1, stream: true }) });
+        if (!response.ok) throw new Error(`Model endpoint returned ${response.status}`);
+        const usage = {};
+        if (!(response.headers.get('content-type') ?? '').includes('text/event-stream')) {
+          // Endpoint ignored stream:true (e.g. the legacy proxy) — consume the
+          // whole JSON body. onDelta never fires, so the caller keeps its
+          // non-stream posting path.
+          const body = await response.json();
+          text = body.choices?.[0]?.message?.content ?? '';
+          if (!text) throw new Error('Model response had no content');
+          Object.assign(usage, body.usage ?? {});
+        } else {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            let nl;
+            while ((nl = buffer.indexOf('\n')) >= 0) {
+              const line = buffer.slice(0, nl).trim();
+              buffer = buffer.slice(nl + 1);
+              if (!line.startsWith('data:')) continue;
+              const payload = line.slice(5).trim();
+              if (payload === '[DONE]') break;
+              try {
+                const event = JSON.parse(payload);
+                const delta = event.choices?.[0]?.delta?.content;
+                if (typeof delta === 'string' && delta) { text += delta; onDelta?.(delta); }
+                if (event.usage) Object.assign(usage, event.usage);
+              } catch { /* malformed event — ignore */ }
+            }
+            if (buffer.includes('[DONE]')) break;
+          }
+        }
+        if (!text.trim()) throw new Error('Model stream returned no content');
+        const record = { profileId: profile.id, capability: request.capability, attempt: 0, latencyMs: Math.round(performance.now() - started), inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0, costUsd: 0 };
+        if (this.spent + record.costUsd > this.budgetUsd) throw new Error('Model budget exceeded');
+        this.spent += record.costUsd;
+        this.success(profile.id, record.latencyMs);
+        try { await this.recordUsage(record); } catch {}
+        this.telemetry({ event: 'model.complete', ...record });
+        return { content: text, usage: record, profileId: profile.id };
+      }
+      // cli profiles cannot stream — single one-shot non-stream result.
+      const result = await this.#attemptOne(profile, request, 0);
+      if (!result.ok) throw result.error;
+      onDelta?.(result.value.content);
+      return result.value;
+    } catch (error) {
+      this.failure(profile.id);
+      this.telemetry({ event: 'model.failure', profileId: profile.id, capability: request.capability, attempt: 0, error: error.message });
+      return this.complete(request);
+    }
+  }
   async complete(request) {
     const excluded = new Set(); let lastError;
     const raceN = Math.min(this.raceCount, this.candidates(request).length);

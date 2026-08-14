@@ -10,3 +10,42 @@ test('cli profile kind selects the CLI completion path (template rejected withou
   const r = new ModelRouter([{ ...profile('cli', 0.9), kind: 'cli', model: 'opencode/test' }], { maxRetries: 0 });
   await assert.rejects(r.complete({ capability: 'planning', contextTokens: 1, messages: [] }), /CLI model produced no output|opencode run exited|ENOENT/);
 });
+const sseResponse = (chunks, usage = null) => ({
+  ok: true,
+  headers: { get: (k) => (k === 'content-type' ? 'text/event-stream' : null) },
+  body: {
+    getReader() {
+      const queue = chunks.slice();
+      return {
+        read: async () => (queue.length ? { done: false, value: new TextEncoder().encode(queue.shift()) } : { done: true, value: undefined }),
+        cancel: async () => {},
+      };
+    },
+  },
+});
+test('completeStream parses SSE deltas and yields them through onDelta', async () => {
+  const deltas = [];
+  const r = new ModelRouter([profile('a', 0.6), profile('b', 0.5)], {
+    fetch: async () => sseResponse([`data: ${JSON.stringify({ choices: [{ delta: { content: 'hel' } }] })}\n`, `data: ${JSON.stringify({ choices: [{ delta: { content: 'lo' } }] })}\n`, `data: ${JSON.stringify({ choices: [{ delta: {} }], usage: { prompt_tokens: 9, completion_tokens: 3 } })}\n`, 'data: [DONE]\n']),
+  });
+  const out = await r.completeStream({ capability: 'planning', contextTokens: 1, messages: [] }, (d) => deltas.push(d));
+  assert.equal(out.content, 'hello');
+  assert.deepEqual(deltas, ['hel', 'lo']);
+  assert.equal(out.usage.inputTokens, 9);
+});
+test('completeStream falls back to complete() when the stream endpoint fails', async () => {
+  let n = 0;
+  const r = new ModelRouter([profile('a', 0.6)], { maxRetries: 1, fetch: async () => { n++; return n === 1 ? { ok: false, status: 503 } : ok('done'); } });
+  const deltas = [];
+  const out = await r.completeStream({ capability: 'planning', contextTokens: 1, messages: [] }, (d) => deltas.push(d));
+  assert.equal(out.content, 'done');
+  assert.equal(deltas.length, 0);
+  assert.equal(n, 2);
+});
+test('completeStream consumes a non-SSE response as one-shot content', async () => {
+  const r = new ModelRouter([profile('a', 0.6)], { fetch: async () => ok('whole thing') });
+  const deltas = [];
+  const out = await r.completeStream({ capability: 'planning', contextTokens: 1, messages: [] }, (d) => deltas.push(d));
+  assert.equal(out.content, 'whole thing');
+  assert.equal(deltas.length, 0);
+});

@@ -48,13 +48,15 @@ RULES:
 TURN DECISION: the latest user message did not explicitly mention you, so you must decide whether to reply at all. If it clearly does NOT need your reply (random chatter between humans, noise, filler, messages for other people, or something you have nothing useful to add to), reply with exactly: ##NO_REPLY##
 Otherwise reply normally (never include that marker). Bare follow-ups like "?" or "and?" after your own answer DO need a reply.`;
 
-  async function converse({message, context, decision, mode='engaged'}) {
+  async function converse({message, context, decision, mode='engaged', onDelta}) {
     const prompt = basePrompt.replace('{reason}', decision.reason) + (mode === 'decide' ? decideGate : '');
     try {
-      const build = (messages) => router.complete({ capability:'conversation', timeoutMs:35_000, contextTokens:context.estimatedTokens??Math.ceil(JSON.stringify(context).length/4), messages, temperature:0.2 });
+      const request = { capability:'conversation', timeoutMs:35_000, contextTokens:context.estimatedTokens??Math.ceil(JSON.stringify(context).length/4), messages:null, temperature:0.2 };
+      const build = (messages) => router.complete({ ...request, messages });
+      const buildStream = (messages) => onDelta ? router.completeStream({ ...request, messages }, onDelta) : null;
       const userMessage = { id:message.id, authorId:message.author.id, authorName:context.authorName??context.userAlias??null, content:message.content, editedAt:message.editedAt };
       const conversation = JSON.stringify({message:userMessage,context});
-      let response = await build([{role:'system',content:prompt},{role:'user',content:conversation}]);
+      let response = onDelta ? await buildStream([{role:'system',content:prompt},{role:'user',content:conversation}]) : await build([{role:'system',content:prompt},{role:'user',content:conversation}]);
       if (response.content.includes('##NO_REPLY##')) return '##NO_REPLY##';
       const leak = /(opencode|claude|gpt[- .]?[0-9]*|openai|anthropic|mimo|deepseek|qwen|llama|mistral|gemini|language model|llm|software engineering assistant|an? (?:AI|artificial intelligence) (?:assistant|bot|model|chatbot))\b/i;
       if (leak.test(response.content)) {

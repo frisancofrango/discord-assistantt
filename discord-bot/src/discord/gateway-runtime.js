@@ -158,11 +158,108 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
       lastId = extra.id;
       botMessages.set(extra.id, { channelId: channel.id, at: Date.now() });
     }
-    engagement.recordResponse(scopeKey, lastId);
+engagement.recordResponse(scopeKey, lastId);
     rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: ${String(raw).slice(0, 1500)}`, message.channelId);
     if (Date.now() - (sentReplies.get(message.id)?.at ?? 0) > 10 * 60 * 60 * 1000) sentReplies.delete(message.id);
     return first;
   };
+
+  // Streaming reply: posts the answer the moment the first token arrives, then
+  // edits it progressively until the model is done — Discord shows text at ~2s
+  // instead of after the whole 25-40s turn. Final semantics mirror sendReply:
+  // clickable channels, 2000-char spill messages, markers (##REACT## applied,
+  // ##NO_REPLY## → all posted parts deleted, ##GHOSTEDIT## → parts deleted +
+  // silent edit of an older message). Returns the final raw content, or null
+  // when nothing visible should remain.
+  async function streamReply({ message, context, decision, mode, scopeKey }) {
+    if (!runtime.agent?.converse) return null;
+    const channel = message.channel;
+    let posted = null, parts = [], buffer = '', firstPosted = false, idMap = null;
+    let editTimer = null, typing = null;
+    const armTyping = () => { sendTyping(message); typing = setInterval(() => sendTyping(message), 9_000); typing.unref?.(); };
+    const stopTyping = () => { if (typing) { clearInterval(typing); typing = null; } };
+    const visibleText = () => {
+      const t = String(buffer ?? '').replace(/^##GHOSTEDIT##\s*/i, '').replace(/##REACT:\s*[^#\n]{1,40}\s*##?/g, '');
+      return stripNoReply(t);
+    };
+    const currentText = () => {
+      const t = visibleText();
+      const idx = parts.length || 1;
+      return t.slice((idx - 1) * 2000, idx * 2000);
+    };
+    const editVisible = async () => {
+      if (!posted) return;
+      const text = clickableChannels(currentText().slice(0, 2000), idMap);
+      if (!text) return;
+      try { await posted.edit({ content: text, allowedMentions: { parse: [] } }); } catch { /* noop */ }
+    };
+    const scheduleEdit = () => {
+      if (editTimer || !posted) return;
+      editTimer = setTimeout(() => { editTimer = null; editVisible(); }, 1600);
+      editTimer.unref?.();
+    };
+    const postFirst = async () => {
+      try {
+        idMap = (await guildInventory(message))?.channelIds ?? null;
+        const answerIsLatest = await channel.messages.fetch({ limit: 1 }).then((ms) => ms.first()?.id === message.id).catch(() => false);
+        const text = clickableChannels(currentText().slice(0, 2000), idMap);
+        if (!text) return;
+        posted = answerIsLatest
+          ? await channel.send({ content: text, allowedMentions: { parse: [] } })
+          : await message.reply({ content: text, allowedMentions: { parse: [], repliedUser: false } });
+        parts.push(posted);
+        botMessages.set(posted.id, { channelId: channel.id, at: Date.now() });
+        sentReplies.set(message.id, { botMessageId: posted.id, channelId: channel.id, at: Date.now() });
+        stopTyping();
+        scheduleEdit();
+      } catch { /* first post failed — classic sendReply below salvages it */ }
+    };
+    const ensureSpill = async () => {
+      if (!posted || parts.length === 0) return;
+      if (visibleText().length <= parts.length * 2000) return;
+      try { await posted.edit({ content: clickableChannels(currentText().slice(0, 2000), idMap), allowedMentions: { parse: [] } }); } catch {}
+      try {
+        const extra = await channel.send({ content: clickableChannels(visibleText().slice(parts.length * 2000, (parts.length + 1) * 2000), idMap), allowedMentions: { parse: [] } });
+        posted = extra; parts.push(extra);
+        botMessages.set(extra.id, { channelId: channel.id, at: Date.now() });
+      } catch { /* overflow post failed — final edits still apply */ }
+    };
+    const onDelta = (delta) => {
+      if (!delta) return;
+      buffer += delta;
+      if (!firstPosted) { firstPosted = true; void postFirst(); return; }
+      if (visibleText().length > parts.length * 2000) void ensureSpill();
+      else scheduleEdit();
+    };
+    armTyping();
+    let raw = null;
+    try { raw = await runtime.agent.converse({ message, context, decision, mode, onDelta }); }
+    catch (err) { logger.warn?.({ err, scopeKey }, 'streaming conversation failed'); }
+    stopTyping();
+    if (editTimer) { clearTimeout(editTimer); editTimer = null; }
+    const final = String(raw ?? '');
+    if (!firstPosted || !posted) {
+      if (!final || final.includes('##NO_REPLY##')) return null;
+      await sendReply({ message, raw: final, scopeKey });
+      return final;
+    }
+    await editVisible();
+    const reactMatch = final.match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
+    if (reactMatch) await message.react(reactMatch[1].trim()).catch(() => {});
+    if (final.includes('##NO_REPLY##') || !visibleText().trim()) {
+      for (const p of parts) p.delete().catch(() => {});
+      sentReplies.delete(message.id);
+      return null;
+    }
+    if (/^##GHOSTEDIT##/i.test(final)) {
+      for (const p of parts) p.delete().catch(() => {});
+      sentReplies.delete(message.id);
+      if (await maybeGhostEdit(message, final)) return final;
+    }
+    engagement.recordResponse(scopeKey, posted.id);
+    rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: ${final.slice(0, 1500)}`, message.channelId);
+    return final;
+  }
 
   async function maybeRunServerTask(message) {
     if (!message.guildId || message.guild?.ownerId !== message.author?.id) return null;
@@ -320,15 +417,8 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     autoReplyAt.set(scopeKey, now);
     if (!runtime.agent?.converse) return null;
     const assembled = await assembleContext(message);
-    const response = await withTyping(message, () => runtime.agent.converse({ message, context: assembled, decision: { ...decision, reason: 'auto_decision' }, mode: 'decide' }));
-    const reactMatch = String(response ?? '').match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
-    const reactEmoji = reactMatch?.[1]?.trim() ?? null;
-    const withoutReact = reactEmoji ? String(response).replace(reactMatch[0], '') : String(response ?? '');
-    const stripped = stripNoReply(withoutReact);
-    if (reactEmoji) await message.react(reactEmoji).catch(() => {});
-    if (!stripped.trim()) return null;
-    await sendReply({ message, raw: stripped, scopeKey });
-    return true;
+    const response = await streamReply({ message, context: assembled, decision: { ...decision, reason: 'auto_decision' }, mode: 'decide', scopeKey });
+    return response === null ? false : true;
   }
 
   async function routeMessage(message, isEdit) {
@@ -467,11 +557,8 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
           }
         }
         const assembled = await assembleContext(message);
-        if (!runtime.agent?.converse) return;
-        const response = await withTyping(message, () => runtime.agent.converse({ message, context: assembled, decision: active, mode: 'engaged' }));
-        if (!response || response.includes('##NO_REPLY##')) return;
-        if (await maybeGhostEdit(message, response)) return;
-        await sendReply({ message, raw: response, scopeKey: active.scopeKey });
+        const response = await streamReply({ message, context: assembled, decision: active, mode: 'engaged', scopeKey: active.scopeKey });
+        if (response === null) return;
       } finally {
         scopeBusy.delete(scope);
         const queued = pendingScopes.get(scope);
