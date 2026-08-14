@@ -44,12 +44,42 @@ test('remember upserts scoped rows with vector literal and content hash', async 
   assert.equal(params[0], 'fact');
 });
 
-test('remember is a no-op without embeddings configured', async () => {
+test('remember is a no-op when embeddings have no base URL', async () => {
   const db = fakeDb();
-  const svc = new SemanticMemoryService({ db, embedder: new EmbeddingClient({ baseUrl: 'https://api.nomic.ai/v1' }) });
+  const svc = new SemanticMemoryService({ db, embedder: new EmbeddingClient({}) });
   assert.equal(svc.enabled, false);
   const result = await svc.remember({ guildId: 'g1', userId: 'u1', content: 'x' });
   assert.deepEqual(result, { stored: false, reason: 'embeddings_disabled' });
+  assert.equal(db.log.length, 0);
+});
+
+test('rememberState rolls a single per-channel digest row (capped lines)', async () => {
+  const log = [];
+  const queue = [
+    { rows: [] }, // first prior lookup: none yet
+    { rows: [{ id: 'state-1' }] }, // first insert
+    { rows: [{ kind: 'state', content: 'round 1: paper beats rock, score 1-0', metadata: {} }] }, // second prior lookup
+    { rows: [{ id: 'state-1' }] }, // second insert (upsert)
+  ];
+  const db = { log, query: async (sql, params) => { log.push({ sql, params }); return queue.shift() ?? { rows: [] }; } };
+  const svc = new SemanticMemoryService({ db, embedder: fakeEmbedder() });
+  const first = await svc.rememberState({ guildId: 'g1', userId: 'u1', channelId: 'c1', line: 'round 1: paper beats rock, score 1-0' });
+  assert.equal(first.stored, true);
+  const insert1 = log[1];
+  assert.match(insert1.sql, /INSERT INTO semantic_memories/);
+  assert.match(insert1.sql, /kind='state'/);
+  const hash = insert1.params[2];
+  const second = await svc.rememberState({ guildId: 'g1', userId: 'u1', channelId: 'c1', line: 'round 2: scissors beats paper, score 2-0' });
+  assert.equal(second.stored, true);
+  const insert2 = log[3];
+  assert.equal(insert2.params[0], 'round 1: paper beats rock, score 1-0\nround 2: scissors beats paper, score 2-0');
+  assert.equal(insert2.params[2], hash); // same digest row keeps upserting in place
+});
+
+test('rememberState is a no-op without an embeddings base URL', async () => {
+  const db = fakeDb();
+  const svc = new SemanticMemoryService({ db, embedder: new EmbeddingClient({}) });
+  assert.deepEqual(await svc.rememberState({ guildId: 'g1', userId: 'u1', channelId: 'c1', line: 'x' }), { stored: false });
   assert.equal(db.log.length, 0);
 });
 

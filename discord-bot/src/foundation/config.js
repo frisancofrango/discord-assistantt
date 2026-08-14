@@ -93,8 +93,8 @@ export function loadConfig(env = process.env) {
     models: Object.freeze({ profiles: modelProfiles, maxRetries: raw.MODEL_MAX_RETRIES, failureThreshold: raw.MODEL_FAILURE_THRESHOLD, circuitResetMs: raw.MODEL_CIRCUIT_RESET_MS, pacingMs: raw.MODEL_PACING_MS, budgetUsd: raw.AGENT_BUDGET_USD, raceCount: raw.RACE_PROFILES }),
     research: Object.freeze({ maxBytes: raw.RESEARCH_MAX_BYTES, timeoutMs: raw.RESEARCH_TIMEOUT_MS, allowedTypes: raw.RESEARCH_ALLOWED_TYPES.split(',').map((v) => v.trim()), allowedHosts: raw.RESEARCH_ALLOWED_HOSTS.split(',').map((v) => v.trim()).filter(Boolean) }),
     code: Object.freeze({ workspaceRoot: raw.CODE_WORKSPACE_ROOT, validationCommands, commandTimeoutMs: raw.CODE_COMMAND_TIMEOUT_MS }),
-    embeddings: Object.freeze({ baseUrl: raw.EMBED_BASE_URL, apiKey: raw.EMBED_API_KEY ?? null, model: raw.EMBED_MODEL, dimensions: raw.EMBED_DIMENSIONS, enabled: Boolean(raw.EMBED_API_KEY) }),
-    memory: Object.freeze({ searchLimit: raw.MEMORY_SEARCH_LIMIT, ingestion: raw.MEMORY_INGESTION }),
+    embeddings: Object.freeze({ baseUrl: raw.EMBED_BASE_URL, apiKey: raw.EMBED_API_KEY ?? null, model: raw.EMBED_MODEL, dimensions: raw.EMBED_DIMENSIONS, enabled: Boolean(raw.EMBED_BASE_URL) }),
+    memory: Object.freeze({ searchLimit: raw.MEMORY_SEARCH_LIMIT, ingestion: raw.MEMORY_INGESTION === undefined ? Boolean(raw.EMBED_BASE_URL) : raw.MEMORY_INGESTION !== 'false' }),
     autonomy: Object.freeze({ tierCount: raw.AUTONOMY_TIER_COUNT, approvalTtlMs: raw.APPROVAL_TTL_MS, approvalTokenPepper: raw.APPROVAL_TOKEN_PEPPER, snapshotMaxAgeMs: raw.SNAPSHOT_MAX_AGE_MS, concurrency: raw.WORKFLOW_CONCURRENCY }),
     native: Object.freeze({
       tickets: Object.freeze({ openLimit: raw.TICKET_OPEN_LIMIT, duplicateMinutes: raw.TICKET_DUPLICATE_MINUTES, slaMinutes: raw.TICKET_SLA_MINUTES }),

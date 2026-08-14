@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EmbeddingClient, EMBED_PROVIDERS } from '../src/memory/embeddings.js';
 
-test('embedding client is inert without credentials', () => {
-  const inert = new EmbeddingClient({ baseUrl: 'https://api.nomic.ai/v1' });
-  assert.equal(inert.enabled, false);
+test('embedding client is inert without a base URL', () => {
+  assert.equal(new EmbeddingClient({}).enabled, false);
   assert.equal(new EmbeddingClient({ apiKey: 'k' }).enabled, false);
+  assert.equal(new EmbeddingClient({ baseUrl: 'https://api.nomic.ai/v1' }).enabled, true);
 });
 
 test('embedding client posts OpenAI-compatible batch and validates dimensions', async () => {

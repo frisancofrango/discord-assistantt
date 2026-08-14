@@ -62,22 +62,22 @@ try {
     const listener = (...args) => event.execute(...args, client);
     event.once ? client.once(event.name, listener) : client.on(event.name, listener);
   }
+  runtime.memory = new SemanticMemoryService({ db:runtime.db, embedder:new EmbeddingClient({ baseUrl:config.embeddings.baseUrl, apiKey:config.embeddings.apiKey, model:config.embeddings.model, dimensions:config.embeddings.dimensions, logger }), logger, searchLimit:config.memory.searchLimit });
   discordRuntime = createDiscordRuntime({ client, runtime, config, logger, memory:runtime.memory });
   client.discordRuntime = discordRuntime;
   const autonomyStore = new PostgresAutonomyStore(runtime.db);
   const snapshotReader = async (guildId) => (await discordRuntime.tools.invoke('guild.snapshot', { guildId }, { client, db:runtime.db, idempotencyKey:`workflow:snapshot:${guildId}:${Date.now()}`, autonomy:'advisor', actor:{authenticated:true,guildMember:true,isOwner:true,permissions:[]} })).output.snapshot;
-  const permissionResolver = async (guildId) => { const guild=await client.guilds.fetch(guildId); return guild.members.me?.permissions?.toArray?.() ?? []; };
+  const permissionResolver = async (guildId) => { const guild=await client.guilds.fetch(guildId); const me = guild.members.me ?? (await guild.members.fetch({ user: client.user.id, force: true }).then((m) => m.get(client.user.id) ?? null).catch(() => null)); return me?.permissions?.toArray?.() ?? []; };
   const executor = new SafeWorkflowExecutor({ store:autonomyStore, tools:discordRuntime.tools, snapshotReader, permissionResolver, maxSnapshotAgeMs:config.autonomy.snapshotMaxAgeMs, concurrency:config.autonomy.concurrency });
   const rollback = new RollbackService({ store:autonomyStore, tools:discordRuntime.tools, snapshotReader, maxSnapshotAgeMs:config.autonomy.snapshotMaxAgeMs });
   runtime.autonomy = { config:config.autonomy, store:autonomyStore, hydrate:hydrateProposal, approvals:new ApprovalService({store:autonomyStore,pepper:config.autonomy.approvalTokenPepper,ttlMs:config.autonomy.approvalTtlMs}), executor, rollback };
-  runtime.memory = new SemanticMemoryService({ db:runtime.db, embedder:new EmbeddingClient({ baseUrl:config.embeddings.baseUrl, apiKey:config.embeddings.apiKey, model:config.embeddings.model, dimensions:config.embeddings.dimensions, logger }), logger, searchLimit:config.memory.searchLimit });
   runtime.native = createNativeRuntime({ db:runtime.db, queue:runtime.queue, tools:discordRuntime.tools, config, logger, client });
   if (runtime.state.database && runtime.state.redis) await runtime.native.start();
   await client.login(config.token);
   setInterval(() => {
     const router = runtime?.agent?.router;
     if (!router || Date.now() - (router.lastAttemptAt || 0) < 60_000) return;
-    router.complete({ capability: 'conversation', contextTokens: 300, timeoutMs: 18_000, messages: [{ role: 'system', content: 'You are Azure, a Discord server assistant. Reply with exactly: ok' }, { role: 'user', content: 'keepalive' }] })
+    router.complete({ capability: 'conversation', contextTokens: 300, timeoutMs: 18_000, race: false, messages: [{ role: 'system', content: 'You are Azure, a Discord server assistant. Reply with exactly: ok' }, { role: 'user', content: 'keepalive' }] })
       .then(() => logger.info({ health: router.snapshot() }, 'model keepalive ok'))
       .catch((err) => logger.warn({ err: err.message }, 'model keepalive failed'));
   }, 180_000);

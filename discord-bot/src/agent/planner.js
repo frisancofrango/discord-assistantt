@@ -97,7 +97,7 @@ export class Planner {
       const response = await this.router.complete({ capability: 'planning', contextTokens: Math.ceil((JSON.stringify(freshContext).length + userJson.length) / 4), json: true, messages: [{ role:'system', content:SYSTEM }, { role:'user', content:userJson + hints }] });
       lastResponse = response;
       try {
-        plan = finalizePlan(PlanSchema.parse(response.content), freshContext.observedAt);
+        plan = finalizePlan(parseJson(response.content, PlanSchema), freshContext.observedAt);
         if (!plan.steps.length) throw new Error('plan has no steps');
         if (plan.risk === 'high') {
           const review = await this.router.complete({ capability:'critic', contextTokens: JSON.stringify(plan).length / 4, json:true, messages:[{role:'system',content:CRITIC},{role:'user',content:JSON.stringify(plan)}] });

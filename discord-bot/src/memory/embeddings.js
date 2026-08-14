@@ -33,7 +33,8 @@ export class EmbeddingClient {
   }
 
   get enabled() {
-    return Boolean(this.apiKey && this.baseUrl);
+    // A base URL alone is enough (e.g. a local ollama instance with no key).
+    return Boolean(this.baseUrl);
   }
 
   /**

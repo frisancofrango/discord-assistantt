@@ -5,6 +5,7 @@ import { EngagementPolicy } from './engagement.js';
 import { DiscordToolRegistry } from './tool-runtime.js';
 import { registerDiscordTools } from './tool-definitions.js';
 import { withCorrelation, correlationId } from '../foundation/logger.js';
+import { sanitizeReply } from '../lib/sanitize.js';
 import { buildProposal, hashApprovalToken } from '../autonomy/proposal.js';
 import { proposalPanel, progressPanel, receiptPanel } from '../autonomy/ui.js';
 
@@ -24,6 +25,10 @@ const autoReplyAt = new Map();
 const scopeBusy = new Map();
 const pendingScopes = new Map();
 const ghostEditAt = new Map();
+const inFlightTurns = new Set();
+const firstSeenAt = new Map();
+const taskAttempted = new Map();
+const ownerCache = new Map();
 
 const deletedSassLines = [
   "rude. i typed that with my tiny robot hands.",
@@ -99,10 +104,31 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
       memory.remember({ guildId: guildId ?? null, userId, kind: 'exchange', content, metadata: { discordChannelId: channelId } })
         .then((r) => logger.debug?.({ stored: r.stored }, 'semantic exchange remembered'))
         .catch((err) => logger.error?.({ err }, 'semantic memory ingestion failed'));
+      memory.rememberState({ guildId: guildId ?? null, userId, channelId, line: String(content).replace(/\s+/g, ' ').slice(0, 300) })
+        .then((r) => logger.debug?.({ lines: r.lines }, 'channel state digest updated'))
+        .catch((err) => logger.error?.({ err }, 'channel state digest failed'));
     }
   };
 
   const scopeOf = (message) => `${message.guildId ?? 'dm'}:${message.channel?.isThread?.() ? message.channel.parentId : message.channelId}`;
+
+  // Owner check that survives a cold guild cache (message.guild?.ownerId is
+  // undefined when the guild was never fetched) — otherwise an owner command
+  // falls through to a chat reply asking questions instead of acting.
+  const isServerOwner = async (message) => {
+    if (!message.guildId || message.author?.bot) return false;
+    const cached = ownerCache.get(message.guildId);
+    if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.id === message.author.id;
+    let ownerId = message.guild?.ownerId ?? null;
+    if (!ownerId) {
+      try {
+        const guild = message.guild ?? (await client.guilds.fetch(message.guildId).catch(() => null));
+        ownerId = guild ? (await guild.fetchOwner().then((m) => m.id).catch(() => null)) : null;
+      } catch { ownerId = null; }
+    }
+    ownerCache.set(message.guildId, { id: ownerId, at: Date.now() });
+    return ownerId === message.author.id;
+  };
 
   const sendTyping = async (message) => { try { await message.channel.sendTyping(); } catch { /* noop */ } };
 
@@ -122,7 +148,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
   // ##REACT:emoji## — tolerate a missing closing '##' when the marker sits at
   // the end of the text (the model often drops it), still never match mid-line.
   const reactMarker = /##REACT:\s*([^#\n]{1,40})\s*#*(?=\s*(?:\n|$))/;
-  const stripReact = (t) => String(t ?? '').replace(/##REACT:\s*[^#\n]{1,40}\s*#*(?=\s*(?:\n|$))/g, '');
+  const stripReact = (t) => String(t ?? '').replace(/##REACT:\s*[^#\n]{1,40}\s*#*(?=\s*(?:\n|$))/g, '').replace(/##REACT:[ \t]*#*(?=\s*(?:\n|$))/g, '');
 
   const maybeGhostEdit = async (message, raw) => {
     if (!raw.startsWith('##GHOSTEDIT##')) return false;
@@ -143,10 +169,19 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     } catch (err) { logger.warn({ err }, 'ghost edit failed'); return false; }
   };
 
+  // Posting a Discord "reply" to a message that was deleted mid-turn throws
+  // MESSAGE_REFERENCE_UNKNOWN_MESSAGE — fall back to a plain channel send so
+  // the answer still lands (and never crashes the turn).
+  const replyOrSend = async (channel, message, content) => {
+    try { return await message.reply({ content, allowedMentions: { parse: [], repliedUser: false } }); }
+    catch (err) { logger.warn?.({ err }, 'reply target gone; falling back to plain send'); return channel.send({ content, allowedMentions: { parse: [] } }); }
+  };
+
   const sendReply = async ({ message, raw, scopeKey }) => {
     const reactMatch = String(raw ?? '').match(reactMarker);
     const reactEmoji = reactMatch?.[1]?.trim() ?? null;
-    const cleaned = stripNoReply(reactEmoji ? String(raw).replace(reactMatch[0], '') : String(raw ?? ''));
+    const cleaned = sanitizeReply(stripNoReply(reactEmoji ? String(raw).replace(reactMatch[0], '') : String(raw ?? '')));
+    if (!cleaned) { engagement.recordResponse(scopeKey, message.id); return null; }
     const inventory = await guildInventory(message);
     const idMap = inventory?.channelIds ?? null;
     const parts = splitLong(cleaned).map((p) => clickableChannels(p, idMap));
@@ -156,9 +191,15 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     // message we are answering is no longer the last one in the channel.
     const answerIsLatest = await channel.messages.fetch({ limit: 1 }).then((ms) => ms.first()?.id === message.id).catch(() => false);
     if (!parts[0]) { engagement.recordResponse(scopeKey, message.id); return null; }
+    const lastOurs = answerIsLatest ? null : await channel.messages.fetch({ limit: 1 }).then((ms) => ms.first()).catch(() => null);
+    if (lastOurs && lastOurs.author?.id === client.user.id && lastOurs.content === parts[0]) {
+      // The model looper answer again — our previous reply already says it.
+      engagement.recordResponse(scopeKey, message.id);
+      return null;
+    }
     const first = answerIsLatest
       ? await channel.send({ content: parts[0], allowedMentions: { parse: [] } })
-      : await message.reply({ content: parts[0], allowedMentions: { parse: [], repliedUser: false } });
+      : await replyOrSend(channel, message, parts[0]);
     let lastId = first.id;
     botMessages.set(first.id, { channelId: channel.id, at: Date.now() });
     sentReplies.set(message.id, { botMessageId: first.id, channelId: channel.id, at: Date.now() });
@@ -187,10 +228,15 @@ engagement.recordResponse(scopeKey, lastId);
     // and an engaged-mode turn can otherwise double-post the same answer.
     if (sentReplies.has(message.id)) return null;
     const channel = message.channel;
+    // Prefetch while typing: the first post should not wait on a fresh
+    // guild-inventory fetch when the first token lands.
+    const inventoryPromise = guildInventory(message).catch(() => null);
     let posted = null, parts = [], buffer = '', firstPosted = false, idMap = null;
-    let editTimer = null, typing = null;
+    let editTimer = null, typing = null, postingPromise = null;
+    let pendingTail = '';
     const armTyping = () => { sendTyping(message); typing = setInterval(() => sendTyping(message), 9_000); typing.unref?.(); };
     const stopTyping = () => { if (typing) { clearInterval(typing); typing = null; } };
+    const scrubLine = (l) => { const t = l.trim(); return t && !/^[^@#\n]{0,40}\s*(?:—|–)\s*\d{1,2}:\d{2}\b[^\n]{0,60}$/.test(t) && !/^[^#\n]{1,40}\s+is\s+typing\.{2,}$/i.test(t) && !/^(?:looking at this[,.]?|let(?:'s| me) (?:start|begin|take a look at|look|check|explore|see|read|investigate|dig|search|understand)|i need to (?:understand|see|check|look)|i(?:'m|'ll| will) (?:go(?:ing)? to )?(?:look|check|explore|see|read|open|inspect|examine|search|investigate|dig|start)|first[,:]?\s+i (?:need|should|want)|my (?:next )?step is|so[,;]?\s+let(?:'s| me) (?:start|begin|look|check|explore))[^\n]{0,220}$/i.test(t); };
     const visibleText = () => {
       const t = String(buffer ?? '').replace(/^##GHOSTEDIT##\s*/i, '').replace(/##REACT:\s*[^#\n]{1,40}\s*#*(?=\s*(?:\n|$))/g, '');
       return stripNoReply(t);
@@ -208,18 +254,26 @@ engagement.recordResponse(scopeKey, lastId);
     };
     const scheduleEdit = () => {
       if (editTimer || !posted) return;
-      editTimer = setTimeout(() => { editTimer = null; editVisible(); }, 1600);
+      editTimer = setTimeout(() => { editTimer = null; editVisible(); }, 3000);
       editTimer.unref?.();
     };
     const postFirst = async () => {
       try {
-        idMap = (await guildInventory(message))?.channelIds ?? null;
+        idMap = (await inventoryPromise)?.channelIds ?? null;
         const answerIsLatest = await channel.messages.fetch({ limit: 1 }).then((ms) => ms.first()?.id === message.id).catch(() => false);
         const text = clickableChannels(currentText().slice(0, 2000), idMap);
         if (!text) return;
-        posted = answerIsLatest
-          ? await channel.send({ content: text, allowedMentions: { parse: [] } })
-          : await message.reply({ content: text, allowedMentions: { parse: [], repliedUser: false } });
+        let target = null;
+        if (!answerIsLatest) {
+          // Never double-post: if our last message in the channel already says
+          // exactly this, reuse it and keep editing it instead of posting again.
+          const lastOurs = await channel.messages.fetch({ limit: 1 }).then((ms) => ms.first()).catch(() => null);
+          if (lastOurs?.author?.id === client.user.id && lastOurs.content === text) target = lastOurs;
+          else target = await replyOrSend(channel, message, text);
+        } else {
+          target = await channel.send({ content: text, allowedMentions: { parse: [] } });
+        }
+        posted = target;
         parts.push(posted);
         botMessages.set(posted.id, { channelId: channel.id, at: Date.now() });
         sentReplies.set(message.id, { botMessageId: posted.id, channelId: channel.id, at: Date.now() });
@@ -239,8 +293,14 @@ engagement.recordResponse(scopeKey, lastId);
     };
     const onDelta = (delta) => {
       if (!delta) return;
-      buffer += delta;
-      if (!firstPosted) { firstPosted = true; void postFirst(); return; }
+      pendingTail += delta;
+      let nl;
+      while ((nl = pendingTail.indexOf('\n')) >= 0) {
+        const line = pendingTail.slice(0, nl + 1);
+        pendingTail = pendingTail.slice(nl + 1);
+        if (scrubLine(line)) buffer += line;
+      }
+      if (!firstPosted) { firstPosted = true; postingPromise = postFirst(); return; }
       if (visibleText().length > parts.length * 2000) void ensureSpill();
       else scheduleEdit();
     };
@@ -250,13 +310,29 @@ engagement.recordResponse(scopeKey, lastId);
     catch (err) { logger.warn?.({ err, scopeKey }, 'streaming conversation failed'); }
     stopTyping();
     if (editTimer) { clearTimeout(editTimer); editTimer = null; }
-    const final = String(raw ?? '');
+    // The first post may still be in flight — wait for it before deciding the
+    // classic fallback, otherwise both paths post the same answer twice.
+    if (postingPromise) { try { await postingPromise; } catch { /* postFirst self-catches */ } }
+    if (pendingTail) {
+      if (scrubLine(pendingTail)) buffer += pendingTail;
+      pendingTail = '';
+    }
+    const final = sanitizeReply(String(raw ?? ''));
     if (!firstPosted || !posted) {
       if (!final || final.includes('##NO_REPLY##')) return null;
       await sendReply({ message, raw: final, scopeKey });
       return final;
     }
-    await editVisible();
+    // The live message streamed draft-text that the final sanitize has since
+    // cut (draft seams, echo collapse). Reconcile the posted parts to the
+    // clean final text: truncate surplus parts and edit the rest.
+    const reconcile = String(stripReact(stripNoReply(final)) ?? '').trim();
+    const wanted = reconcile ? splitLong(reconcile).map((p) => clickableChannels(p, idMap)) : [];
+    for (let i = 0; i < parts.length; i++) {
+      if (i >= wanted.length) { parts[i].delete().catch(() => {}); continue; }
+      if ((parts[i].content ?? '') !== wanted[i]) parts[i].edit({ content: wanted[i], allowedMentions: { parse: [] } }).catch(() => {});
+    }
+    parts.length = Math.min(parts.length, wanted.length);
     const reactMatch = final.match(reactMarker);
     if (reactMatch) await message.react(reactMatch[1].trim()).catch(() => {});
     if (final.includes('##NO_REPLY##') || !visibleText().trim()) {
@@ -275,7 +351,11 @@ engagement.recordResponse(scopeKey, lastId);
   }
 
   async function maybeRunServerTask(message) {
-    if (!message.guildId || message.guild?.ownerId !== message.author?.id) return null;
+    if (!(await isServerOwner(message))) return null;
+    // One task attempt per message, ever: a late MessageUpdate replay (or a
+    // dropped retry) must not raise a second "on it" ack or a second plan.
+    if (taskAttempted.has(message.id)) return null;
+    taskAttempted.set(message.id, Date.now());
     const content = message.content.trim();
     if (/\?\s*$/.test(content) || /^(how|what|why|which|when|where|who|can|could|should|would|is|are|do|does|will|did)\b/i.test(content)) return null;
     const probe = [message.channel?.name, content].filter(Boolean).join(' ');
@@ -285,33 +365,28 @@ engagement.recordResponse(scopeKey, lastId);
     try {
       const guild = (await runtime.db.query(`INSERT INTO guilds(discord_id,name) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET name=excluded.name RETURNING *`, [message.guildId, message.guild?.name ?? null])).rows[0];
       const user = (await runtime.db.query(`INSERT INTO users(discord_id,username) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET username=excluded.username RETURNING *`, [message.author.id, message.author.username])).rows[0];
-      const ack = await message.reply({ content: `on it. inspecting the server first...`, allowedMentions: { parse: [] } });
+      const ack = await message.reply({ content: `on it.`, allowedMentions: { parse: [] } });
       try {
         const snapshotReceipt = await tools.invoke('guild.snapshot', { guildId: message.guildId }, { client, db: runtime.db, idempotencyKey: `chat-task:${message.id}:snapshot`, autonomy: 'advisor', actor: { authenticated: true, guildMember: true, isOwner: true, permissions: [] }, correlationId: correlationId() });
         const before = snapshotReceipt.output.snapshot;
         logger.info({ guildId: message.guildId }, 'owner chat task: snapshot captured, planning');
-        await ack.edit({ content: `inspected the server (${before.channels?.length ?? 0} channels, ${before.roles?.length ?? 0} roles). planning the work...`, allowedMentions: { parse: [] } }).catch(() => {});
         const { task, plan } = await runtime.agent.planner.create({ goal: message.content, context: { observedAt: before.capturedAt, guildSnapshot: before }, guildId: guild.id, actorId: user.id, idempotencyKey: `chat-task:${message.id}` });
-        await ack.edit({ content: `plan ready — ${plan.steps.length} steps, executing now...`, allowedMentions: { parse: [] } }).catch(() => {});
         const draft = buildProposal({ task, plan, beforeSnapshot: before, tierCount: runtime.autonomy.config.tierCount });
         draft.beforeSnapshot = before;
         const row = await runtime.autonomy.store.createProposal(draft);
         const proposal = runtime.autonomy.hydrate(row);
         proposal.beforeSnapshot = before;
         const grant = await runtime.autonomy.approvals.issue({ proposal, actorId: message.author.id });
-        const actor = { id: message.author.id, guildId: message.guildId, authenticated: true, bot: false, isOwner: true, permissions: message.memberPermissions?.toArray?.() ?? [] };
+const actor = { id: message.author.id, guildId: message.guildId, authenticated: true, guildMember: true, bot: false, isOwner: true, permissions: message.memberPermissions?.toArray?.() ?? [] };
         const safe = proposal.machinePlan.steps.filter((s) => !s.irreversible && s.risk !== 'high').map((s) => s.id);
         const decision = await runtime.autonomy.approvals.decide({ token: grant.token, proposal, actor, decision: 'approve_all', selectedStepIds: safe, policy: { default: { autonomy: 'operator' } }, budget: { limit: runtime.agent.router?.budgetUsd ?? 5, spent: 0 } });
-        const panel = await message.reply({ ...progressPanel({ goal: proposal.goal, status: 'running', stage: 'preflight', completed: 0, total: decision.approvedStepIds?.length ?? decision.approved_step_ids?.length ?? 0 }), allowedMentions: { parse: [] } });
-        await runtime.autonomy.store.updateProposal(row.id, { discord_message_id: panel.id });
         const result = await runtime.autonomy.executor.start({ proposal, decision, actor });
-        await ack.delete().catch(() => {});
         const titles = proposal.machinePlan.steps.slice(0, 3).map((s) => s.title).join(' \u00b7 ');
-        await panel.edit({ ...receiptPanel(result.receipt), content: `done: ${titles}${proposal.machinePlan.steps.length > 3 ? ` +${proposal.machinePlan.steps.length - 3} more` : ''}`, allowedMentions: { parse: [] } }).catch(() => {});
+        await ack.edit({ ...receiptPanel(result.receipt), content: `done: ${titles}${proposal.machinePlan.steps.length > 3 ? ` +${proposal.machinePlan.steps.length - 3} more` : ''}`, allowedMentions: { parse: [] } }).catch(() => {});
         return { task, plan };
       } catch (err) {
         logger.warn({ err, content: message.content }, 'chat task failed');
-        await ack.edit({ content: `sorry \u2014 that task failed mid-flight, nothing was changed. it\u2019s logged; try rephrasing or /task for details.`, allowedMentions: { parse: [] } }).catch(() => {});
+        await ack.edit({ content: `that one failed mid-flight, nothing was changed. it\u2019s logged \u2014 try again or rephrase.`, allowedMentions: { parse: [] } }).catch(() => {});
         return 'failed';
       }
     } catch (err) {
@@ -358,7 +433,7 @@ engagement.recordResponse(scopeKey, lastId);
       if (!grant) return null;
       const proposal = autonomy.hydrate(await autonomy.store.getProposal(grant.proposal_id));
       if (proposal.status !== 'pending') return null;
-      const actor = { id: message.author.id, guildId: message.guildId, authenticated: true, bot: false, isOwner: true, permissions: message.memberPermissions?.toArray?.() ?? [] };
+      const actor = { id: message.author.id, guildId: message.guildId, authenticated: true, guildMember: true, bot: false, isOwner: true, permissions: message.memberPermissions?.toArray?.() ?? [] };
       const safe = proposal.machinePlan.steps.filter((s) => !s.irreversible && s.risk !== 'high').map((s) => s.id);
       const decision = await autonomy.approvals.decide({ token, proposal, actor, decision: decisionName, selectedStepIds: safe, policy: { default: { autonomy: 'operator' } }, budget: { limit: runtime.agent.router?.budgetUsd ?? 5, spent: 0 } });
       if (!decisionName.startsWith('approve')) return { status: 'noop' };
@@ -403,7 +478,8 @@ engagement.recordResponse(scopeKey, lastId);
       channelId: message.channel?.isThread?.() ? message.channel.parentId : message.channelId,
       threadId: message.channel?.isThread?.() ? message.channelId : null,
       userId: message.author.id,
-      maxTokens: lean ? 1500 : 2200,
+      maxTokens: lean ? 1500 : 6000,
+      lean,
     });
     if (lean) {
       assembled.recentMessages = assembled.recentMessages.slice(-8);
@@ -446,12 +522,17 @@ engagement.recordResponse(scopeKey, lastId);
     if (message.partial) await message.fetch().catch(() => null);
     const dedupeNow = Date.now();
     for (const [id, t] of handledIds) if (dedupeNow - t > 120_000) handledIds.delete(id);
+    for (const [id, t] of firstSeenAt) if (dedupeNow - t > 120_000) firstSeenAt.delete(id);
+    for (const [id, t] of taskAttempted) if (dedupeNow - t > 600_000) taskAttempted.delete(id);
     if (handledIds.has(message.id)) {
       // Edits re-use the original message id: never drop them on dedupe.
       if (!isEdit) return;
     } else {
       handledIds.set(message.id, dedupeNow);
     }
+    // A Discord edit event for a message whose turn is still running would
+    // start a second concurrent model turn (and a second reply). Drop it.
+    if (isEdit && inFlightTurns.has(message.id)) return;
     if (sentReplies.size > 500 || botMessages.size > 500) {
       const cutoff = dedupeNow - 6 * 3600 * 1000;
       for (const [id, e] of sentReplies) if (e.at < cutoff) sentReplies.delete(id);
@@ -539,8 +620,15 @@ engagement.recordResponse(scopeKey, lastId);
       // and drained into a single turn on the newest message, so the bot never
       // answers the same moment three times or attaches stale answers.
       const scope = scopeOf(message);
-      if (scopeBusy.has(scope)) { pendingScopes.set(scope, message); return; }
+      if (scopeBusy.has(scope)) {
+        // A replayed copy of a message that is already queued/processing never
+        // gets its own turn — it would double-answer.
+        if (firstSeenAt.has(message.id)) return;
+        firstSeenAt.set(message.id, Date.now());
+        pendingScopes.set(scope, message); return;
+      }
       scopeBusy.set(scope, true);
+      inFlightTurns.add(message.id);
       try {
         if (!active.engage && !isEdit) {
           const approved = await maybeRunChatApproval(message, isEdit);
@@ -549,7 +637,7 @@ engagement.recordResponse(scopeKey, lastId);
             rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed a chat-approved server proposal`, message.channelId);
             return;
           }
-          if (message.guild?.ownerId === message.author?.id && serverOpIntent.test(`#${message.channel?.name ?? ''} ${message.content}`) && serverDomain.test(`#${message.channel?.name ?? ''} ${message.content}`)) {
+          if (await isServerOwner(message) && serverOpIntent.test(`#${message.channel?.name ?? ''} ${message.content}`) && serverDomain.test(`#${message.channel?.name ?? ''} ${message.content}`)) {
             const handedOff = await withTyping(message, () => maybeRunServerTask(message));
             if (handedOff) {
               engagement.recordResponse(active.scopeKey, message.id);
@@ -560,7 +648,7 @@ engagement.recordResponse(scopeKey, lastId);
           if (await maybeAutoReply(message, decision)) return;
         }
         if (!active.engage && !isEdit) return;
-        if (!isEdit && message.guild?.ownerId === message.author?.id) {
+        if (!isEdit && await isServerOwner(message)) {
           const outcome = await withTyping(message, async () => {
             if (await maybeRunChatApproval(message, isEdit)) return 'approval';
             if (await maybeRunServerTask(message)) return 'server_task';
@@ -581,6 +669,7 @@ engagement.recordResponse(scopeKey, lastId);
         const response = await streamReply({ message, context: assembled, decision: active, mode: 'engaged', scopeKey: active.scopeKey });
         if (response === null) return;
       } finally {
+        inFlightTurns.delete(message.id);
         scopeBusy.delete(scope);
         const queued = pendingScopes.get(scope);
         if (queued) {

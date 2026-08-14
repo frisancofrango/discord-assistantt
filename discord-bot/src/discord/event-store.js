@@ -11,7 +11,10 @@ export class DiscordEventStore {
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(gateway_key) DO NOTHING RETURNING *`,
       [event.gatewayKey,event.eventType,event.guildId,event.channelId,event.threadId,event.userId,event.resourceId,event.occurredAt,correlation,safeStringify(event.payload)]);
     if (!inserted.rowCount) return { duplicate:true, event:null };
-    if (eventType.startsWith('message')) await this.#persistMessage(event, client);
+    // Only real message lifecycles carry a persistable message payload.
+    // Reaction/bulk events have no message body — persisting them crashed on
+    // the NOT NULL channel_id constraint.
+    if (/^message(Create|Update|Delete)$/.test(eventType)) await this.#persistMessage(event, client);
     return { duplicate:false, event:inserted.rows[0] };
   }
   async #upsertGuild(discordId,name,client) { if(!discordId)return null; return (await client.query(`INSERT INTO guilds(discord_id,name) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET name=COALESCE(EXCLUDED.name,guilds.name),updated_at=now() RETURNING *`,[discordId,name])).rows[0]; }

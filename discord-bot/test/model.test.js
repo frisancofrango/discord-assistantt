@@ -8,7 +8,7 @@ test('router falls back to a distinct profile',async()=>{const calls=[];const r=
 test('circuit breaker opens after threshold',async()=>{const r=new ModelRouter([profile('a')],{failureThreshold:1,maxRetries:0,fetch:async()=>({ok:false,status:500})});await assert.rejects(r.complete({capability:'planning',contextTokens:1,messages:[]}));assert.equal(r.snapshot().a.circuitOpen,true);await assert.rejects(r.complete({capability:'planning',contextTokens:1,messages:[]}),/No healthy/);});
 test('cli profile kind selects the CLI completion path (template rejected without running)', async () => {
   const r = new ModelRouter([{ ...profile('cli', 0.9), kind: 'cli', model: 'opencode/test' }], { maxRetries: 0 });
-  await assert.rejects(r.complete({ capability: 'planning', contextTokens: 1, messages: [] }), /CLI model produced no output|opencode run exited|ENOENT/);
+  await assert.rejects(r.complete({ capability: 'planning', contextTokens: 1, messages: [] }), /CLI model produced no output|CLI model returned no text|opencode run exited|ENOENT|timed out/);
 });
 const sseResponse = (chunks, usage = null) => ({
   ok: true,
@@ -48,4 +48,15 @@ test('completeStream consumes a non-SSE response as one-shot content', async () 
   const out = await r.completeStream({ capability: 'planning', contextTokens: 1, messages: [] }, (d) => deltas.push(d));
   assert.equal(out.content, 'whole thing');
   assert.equal(deltas.length, 0);
+});
+test('completeStream races profiles: first delta wins, loser output ignored', async () => {
+  let calls = 0;
+  const slow = { ok: true, headers: { get: (k) => (k === 'content-type' ? 'text/event-stream' : null) }, body: { getReader: () => ({ read: () => new Promise((res) => setTimeout(() => res({ done: false, value: new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: 'SLOW' } }] })}\n`) }), 120)), cancel: async () => {} }) } };
+  const fast = sseResponse([`data: ${JSON.stringify({ choices: [{ delta: { content: 'fast!' } }] })}\n`, 'data: [DONE]\n']);
+  const r = new ModelRouter([profile('a', 0.9), profile('b', 0.5)], { raceCount: 2, fetch: async () => (calls++ === 0 ? slow : fast) });
+  const deltas = [];
+  const out = await r.completeStream({ capability: 'planning', contextTokens: 1, messages: [] }, (d) => deltas.push(d));
+  assert.equal(out.content, 'fast!');
+  assert.equal(out.profileId, 'b');
+  assert.deepEqual(deltas, ['fast!']);
 });

@@ -3,6 +3,10 @@ import { EmbeddingClient, EmbeddingError } from './embeddings.js';
 
 /** Cap auto-ingested conversation exchanges per user to bound table growth. */
 const EXCHANGE_CAP_PER_SCOPE = 250;
+/** Rolling per-channel digest keeps at most this many one-line turn summaries. */
+const DIGEST_MAX_LINES = 10;
+/** A state row exists per (guild, user, channel) — stable hash keeps the upsert in place. */
+const digestHash = (guildId, userId, channelId) => scopedHash(`state:${guildId ?? 'dm'}:${userId ?? '?'}:${channelId ?? '?'}`)
 
 function scopedHash(content) {
   return createHash('sha256').update(String(content)).digest('hex');
@@ -67,6 +71,45 @@ export class SemanticMemoryService {
       `INSERT INTO users(discord_id,username) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET username=COALESCE(excluded.username,users.username)`,
       [String(userId), username],
     );
+  }
+
+  /**
+   * Rolling per-channel state digest: one row per (guild, user, channel) that
+   * keeps a bounded one-line summary of recent turns, so scores, counts and
+   * on-going state survive across turns without needing a search query.
+   */
+  async rememberState({ guildId, userId, channelId, line }) {
+    if (!line?.trim() || !this.enabled) return { stored: false };
+    const priorRows = await this.db.query(
+      `SELECT kind,content,metadata FROM semantic_memories
+       WHERE content_hash=$1 AND ($2::text IS NULL OR metadata->>'discordGuildId'=$2) AND ($3::text IS NULL OR metadata->>'discordUserId'=$3)
+       ORDER BY updated_at DESC LIMIT 1`,
+      [digestHash(guildId, userId, channelId), guildId ?? null, userId ?? null],
+    );
+    const prior = priorRows.rows[0] ?? null;
+    const lines = prior
+      ? String(prior.content).split('\n').filter(Boolean).slice(-(DIGEST_MAX_LINES - 1))
+      : [];
+    lines.push(String(line).trim().slice(0, 240));
+    const content = lines.join('\n');
+    const embedding = await this.embedder.embedOne(content);
+    if (!embedding) return { stored: false };
+    const meta = {};
+    if (guildId) meta.discordGuildId = String(guildId);
+    if (userId) meta.discordUserId = String(userId);
+    if (channelId) meta.discordChannelId = String(channelId);
+    const { rows } = await this.db.query(
+      `INSERT INTO semantic_memories (guild_id,user_id,kind,content,metadata,content_hash,embedding)
+       SELECT g.id,u.id,'state',$1,$2,$3,$4::vector
+       FROM (SELECT id FROM users WHERE discord_id=$6) u
+       LEFT JOIN (SELECT id FROM guilds WHERE discord_id=$5) g ON $5 IS NOT NULL
+       WHERE $5 IS NULL OR g.id IS NOT NULL
+       ON CONFLICT (guild_id,user_id,content_hash) DO UPDATE
+         SET kind='state', content=excluded.content, metadata=excluded.metadata, embedding=excluded.embedding, updated_at=now()
+       RETURNING id`,
+      [content, JSON.stringify(meta), digestHash(guildId, userId, channelId), EmbeddingClient.toLiteral(embedding), guildId ?? null, userId ?? null],
+    );
+    return { id: rows[0]?.id ?? null, stored: Boolean(rows[0]), lines: lines.length };
   }
 
   async search({ query, guildId = null, userId = null, limit = this.searchLimit }) {
