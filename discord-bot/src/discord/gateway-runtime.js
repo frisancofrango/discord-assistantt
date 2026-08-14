@@ -10,8 +10,8 @@ import { proposalPanel, progressPanel, receiptPanel } from '../autonomy/ui.js';
 
 const observed = [Events.MessageCreate, Events.MessageUpdate, Events.MessageDelete, Events.MessageReactionAdd, Events.MessageReactionRemove, Events.InteractionCreate, Events.GuildMemberAdd, Events.GuildMemberUpdate, Events.GuildMemberRemove, Events.GuildRoleCreate, Events.GuildRoleUpdate, Events.GuildRoleDelete, Events.ChannelCreate, Events.ChannelUpdate, Events.ChannelDelete, Events.ThreadCreate, Events.ThreadUpdate, Events.ThreadDelete, Events.GuildBanAdd, Events.GuildBanRemove, Events.AutoModerationActionExecution, Events.AutoModerationRuleCreate, Events.AutoModerationRuleUpdate, Events.AutoModerationRuleDelete, Events.GuildUpdate, Events.InviteCreate, Events.InviteDelete, Events.GuildScheduledEventCreate, Events.GuildScheduledEventUpdate, Events.GuildScheduledEventDelete, Events.WebhooksUpdate];
 
-const serverOpIntent = /\b(organi[sz]e|organi[sz]ation|restructure|set ?up|setup|rearrange|structure|cleanup|clean ?up|overhaul|build|design|moderate|automate|manage|market|promote|advertise|research|rebrand|rebuild|fix|improve|expand|grow|launch|revamp|upgrade)\b/i;
-const serverDomain = /\b(server|channel|categor|role|member|permission|entire|everything|whole|all|this)\b/i;
+const serverOpIntent = /\b(organi[sz]e|organi[sz]ation|restructure|set ?up|setup|rearrange|structure|cleanup|clean ?up|overhaul|rebuild|redesign|rework|reorgani[sz]e|moderate|automate|manage|market|promote|advertise|research|rebrand|fix|improve|expand|grow|launch|revamp|upgrade|add|create|make|build|write|post|pin|update|rename|change|edit|delete|remove|merge|split|move)\b/i;
+const serverDomain = /\b(server|channel|categor|role|member|permission|shop|listing|button|dropdown|embed|message|post|emoji|sticker|rule|welcome|announcement|template|section|entire|everything|whole|all|this)\b/i;
 const approvePhrase = /^(approved|approve|do it|do everything|do it all|go|go ahead|go for it|yes|confirm|just do it|yeah|yep|sounds good|approved do|approved, do)/i;
 const rejectPhrase = /^(no|reject|deny|cancel|stop|don'?t|not that|wait|hold on)/i;
 const aliasRe = /(?:(?:you can |please )?call me(?: by (?:my )?(?:nick(?:name)?|name))?|my (?:nick)?name(?:'s| is))\s+["'`]?([A-Za-z0-9_ -]{2,24}?)["'`]?(?:\s*(?:please|now|from now on))?[\s!.']*$/i;
@@ -47,6 +47,31 @@ function splitParts(text) {
   for (const seg of segments) if (seg.trim()) parts.push(seg.trim().slice(0, 2000));
   if (!parts.length) parts.push('...');
   return parts;
+}
+
+// Model-driven [PART n] is unreliable, so also split long answers in code:
+// anything over ~1850 chars becomes several messages by sentence boundaries.
+function splitLong(text) {
+  const segments = String(text ?? '').split(/\[PART\s*\d+\]\s*/);
+  let parts = segments.map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 1 && parts[0].length > 1850) {
+    const out = [];
+    let buf = '';
+    for (const sentence of parts[0].match(/[^.!?\n]+[.!?\n]+|[^.!?\n]+$/g) ?? [parts[0]]) {
+      if (buf && (buf + sentence).length > 1850) { out.push(buf.trim()); buf = sentence; }
+      else buf += sentence;
+    }
+    if (buf.trim()) out.push(buf.trim());
+    parts = out;
+  }
+  return parts.map((p) => p.slice(0, 2000));
+}
+
+// Turn "#name" mentions into real clickable channel mentions using the live
+// id map from guildInventory (skips already-rendered <#id> mentions).
+function clickableChannels(text, idMap) {
+  if (!idMap || typeof idMap !== 'object') return text;
+  return String(text).replace(/(^|\s)#([A-Za-z0-9-_]{1,32})(?=[\s,.!?;:)\]]|$)/g, (m, pre, name) => (idMap[name] ? `${pre}<#${idMap[name]}>` : m));
 }
 
 export function createDiscordRuntime({ client, runtime, config, logger, memory = null }) {
@@ -87,10 +112,12 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
 
   const maybeGhostEdit = async (message, raw) => {
     if (!raw.startsWith('##GHOSTEDIT##')) return false;
+    const reactMatch = String(raw ?? '').match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
+    if (reactMatch) await message.react(reactMatch[1].trim()).catch(() => {});
     const scope = scopeOf(message);
     const last = ghostEditAt.get(scope) ?? 0;
     if (Date.now() - last < 4 * 60 * 1000) return false;
-    const content = raw.replace(/^##GHOSTEDIT##\s*/i, '').slice(0, 2000);
+    const content = raw.replace(/^##GHOSTEDIT##\s*/i, '').replace(reactMatch ? reactMatch[0] : '', '').slice(0, 2000);
     try {
       const recent = await message.channel.messages.fetch({ limit: 6 });
       const ours = [...recent.values()].find((m) => m.author?.id === client.user.id);
@@ -103,11 +130,18 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
   };
 
   const sendReply = async ({ message, raw, scopeKey }) => {
-    const parts = splitParts(raw);
+    const reactMatch = String(raw ?? '').match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
+    const reactEmoji = reactMatch?.[1]?.trim() ?? null;
+    const cleaned = reactEmoji ? String(raw).replace(reactMatch[0], '') : String(raw ?? '');
+    const inventory = await guildInventory(message);
+    const idMap = inventory?.channelIds ?? null;
+    const parts = splitLong(cleaned).map((p) => clickableChannels(p, idMap));
     const channel = message.channel;
+    if (reactEmoji) await message.react(reactEmoji).catch(() => {});
     // Use the Discord "reply" feature only when it actually helps: when the
     // message we are answering is no longer the last one in the channel.
     const answerIsLatest = await channel.messages.fetch({ limit: 1 }).then((ms) => ms.first()?.id === message.id).catch(() => false);
+    if (!parts[0]) { engagement.recordResponse(scopeKey, message.id); return null; }
     const first = answerIsLatest
       ? await channel.send({ content: parts[0], allowedMentions: { parse: [] } })
       : await message.reply({ content: parts[0], allowedMentions: { parse: [], repliedUser: false } });
@@ -128,7 +162,8 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
 
   async function maybeRunServerTask(message) {
     if (!message.guildId || message.guild?.ownerId !== message.author?.id) return null;
-    if (!serverOpIntent.test(message.content) || !serverDomain.test(message.content)) return null;
+    const probe = [message.channel?.name, message.content].filter(Boolean).join(' ');
+    if (!serverOpIntent.test(probe) || !serverDomain.test(probe)) return null;
     if (!runtime.agent?.planner || !runtime.autonomy) return null;
     const botId = client.user.id;
     try {
@@ -217,12 +252,13 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     if (cached && Date.now() - cached.at < 60_000) return cached.data;
     try {
       const [channels, members] = await Promise.all([guild.channels.fetch(), guild.members.fetch({ limit: 100 }).catch(() => new Map())]);
-      const channelNames = [...channels.values()]
+      const found = [...channels.values()]
         .filter((c) => c.type === 0 || c.type === 5 || c.type === 15)
-        .map((c) => `#${c.name}${c.parent ? ` (in ${c.parent.name})` : ''}`)
         .slice(0, 80);
+      const channelNames = found.map((c) => `#${c.name}${c.parent ? ` (in ${c.parent.name})` : ''}`);
+      const channelIds = Object.fromEntries(found.map((c) => [c.name, c.id]));
       const memberNames = [...members.values()].slice(0, 100).map((m) => m.displayName);
-      const data = { serverName: guild.name, memberCount: guild.memberCount ?? members.size, channels: channelNames, members: memberNames };
+      const data = { serverName: guild.name, memberCount: guild.memberCount ?? members.size, channels: channelNames, channelIds, members: memberNames };
       guildInventoryCache.set(guild.id, { at: Date.now(), data });
       return data;
     } catch (err) { logger.warn?.({ err, guildId: guild.id }, 'guild inventory fetch failed'); return null; }
@@ -263,8 +299,12 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     if (!runtime.agent?.converse) return null;
     const assembled = await assembleContext(message);
     const response = await withTyping(message, () => runtime.agent.converse({ message, context: assembled, decision: { ...decision, reason: 'auto_decision' }, mode: 'decide' }));
-    if (!response || response.includes('##NO_REPLY##')) return null;
-    await sendReply({ message, raw: response, scopeKey });
+    const reactMatch = String(response ?? '').match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
+    const reactEmoji = reactMatch?.[1]?.trim() ?? null;
+    const withoutReact = reactEmoji ? String(response).replace(reactMatch[0], '') : String(response ?? '');
+    if (reactEmoji) await message.react(reactEmoji).catch(() => {});
+    if (!withoutReact.trim() || withoutReact.includes('##NO_REPLY##')) return null;
+    await sendReply({ message, raw: withoutReact, scopeKey });
     return true;
   }
 
@@ -272,8 +312,12 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     if (message.partial) await message.fetch().catch(() => null);
     const dedupeNow = Date.now();
     for (const [id, t] of handledIds) if (dedupeNow - t > 120_000) handledIds.delete(id);
-    if (handledIds.has(message.id)) return;
-    handledIds.set(message.id, dedupeNow);
+    if (handledIds.has(message.id)) {
+      // Edits re-use the original message id: never drop them on dedupe.
+      if (!isEdit) return;
+    } else {
+      handledIds.set(message.id, dedupeNow);
+    }
     if (sentReplies.size > 500 || botMessages.size > 500) {
       const cutoff = dedupeNow - 6 * 3600 * 1000;
       for (const [id, e] of sentReplies) if (e.at < cutoff) sentReplies.delete(id);

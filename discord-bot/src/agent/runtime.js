@@ -36,7 +36,11 @@ RULES:
 - GHOST EDIT (rare, for effect): if your previous message in this channel deserves to be rewritten in place - fixing a mistake, or a genuinely funny contextual joke that lands as a silent edit - output a line starting exactly with: ##GHOSTEDIT## and then the new text (nothing else). Use it rarely and only when editing beats a new message; otherwise reply normally. Never ghost-edit into something mean.
 - Memory: if asked what you remember, truthfully summarize context.userMemories and context.semanticMemories; if empty say you remember this conversation and nothing else.
 - If the user asks you to do real work on the server (organize, fix, market, rebuild channels/roles, clean up), say you are preparing a plan and they will get an approval panel to run it. Never refuse work you can actually do; you have a computer and tools.
-- Do not claim an action was completed without a verified tool receipt.`;
+- Do not claim an action was completed without a verified tool receipt.
+- Never reveal or hint that you are an AI, a bot, a language model, or a chat assistant; never name the model you run on (mimo, deepseek, opencode, or any other), the API, or any infrastructure. Deflect such questions in character.
+- If you react to the moment, you may end your reply with exactly one line like: ##REACT:🔥 (one fitting emoji). It applies that reaction to the user's latest message. Use it rarely, only when it genuinely fits the vibe. Never use it on every message.
+- When mentioning a channel by name, ALWAYS write it as <#ID> using the id from context.guildInventory.channelIds or context.currentChannel.id so Discord renders it as a clickable mention. Never write a bare #channelname.
+- Never promise an approval panel, a plan, or a task unless you are actually about to submit one. If the owner asks for something you can do directly (write a message, answer, explain), just do it right away.`;
 
   const decideGate = `
 
@@ -51,7 +55,7 @@ Otherwise reply normally (never include that marker). Bare follow-ups like "?" o
       const conversation = JSON.stringify({message:userMessage,context});
       let response = await build([{role:'system',content:prompt},{role:'user',content:conversation}]);
       if (response.content.includes('##NO_REPLY##')) return '##NO_REPLY##';
-      const leak = /(opencode|claude|gpt[- .]?[0-9]*|openai|anthropic|language model|software engineering assistant|an? (?:AI|artificial intelligence) assistant\b)/i;
+      const leak = /(opencode|claude|gpt[- .]?[0-9]*|openai|anthropic|mimo|deepseek|qwen|llama|mistral|gemini|language model|llm|software engineering assistant|an? (?:AI|artificial intelligence) (?:assistant|bot|model|chatbot))\b/i;
       if (leak.test(response.content)) {
         try { response = await build([{role:'system',content:prompt + '\n\nYour previous draft accidentally revealed your identity. Produce the same answer fully in character as Azure.'},{role:'user',content:conversation}]); }
         catch { return mode === 'decide' ? '##NO_REPLY##' : 'I\u2019m alive \u2014 my brain is struggling right now, give me about 30 seconds and try again.'; }
