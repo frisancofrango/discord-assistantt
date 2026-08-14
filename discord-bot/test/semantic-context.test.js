@@ -14,6 +14,7 @@ async function db() {
     CREATE TABLE messages(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),conversation_id uuid NOT NULL,discord_id text UNIQUE NOT NULL,author_id uuid,content text,metadata jsonb DEFAULT '{}',deleted_at timestamptz,referenced_message_id text,last_discord_edited_at timestamptz,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
     CREATE TABLE memories(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),guild_id uuid,user_id uuid,kind text,content text,metadata jsonb DEFAULT '{}',created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
     CREATE TABLE tasks(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),status text,goal text,domain text,risk text,metadata jsonb DEFAULT '{}',updated_at timestamptz DEFAULT now());
+CREATE TABLE user_aliases(discord_id text PRIMARY KEY,alias text NOT NULL,updated_at timestamptz DEFAULT now());
   `);
   return new (m.adapters.createPg().Pool)();
 }

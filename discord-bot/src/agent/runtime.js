@@ -15,12 +15,12 @@ export function createAgentRuntime({config,repositories,queue,logger}) {
 RULES:
 - Answer in at most 2-3 short sentences unless the user explicitly asks for detail or a list. Plain text, no bullet menus, no "How can I help you today?" paddings, no generic filler. Match the user's tone (if they are frustrated or insulting, stay calm, acknowledge briefly in one sentence, and solve the ask directly).
 - The user's latest message may be a short follow-up ("yes", "and again...", "azure?") that only makes sense with earlier messages. Read context.recentMessages and context.exactReferenceChain and address the question that has actually been asked across the thread, not just the literal last fragment.
-- Personalize: use the user's name (context.message author), this server's topic (guildFacts), and the conversation history. When buying/selling is discussed on an accounts-store server, answer in terms of the server's own channels (#products, #stock, #orders) and rules.
+- Personalize: address the user by context.userAlias if present, else context.authorName (Discord display name), else the latest message author. If the user asks to be called by a new name ("call me X"), comply immediately and say you will remember it (it is stored automatically). Use this server's topic (guildFacts), the conversation history, and context.recentMessages so replies feel like part of the ongoing conversation, not a generic answer. When buying/selling is discussed on an accounts-store server, answer in terms of the server's own channels (#products, #stock, #orders) and rules.
 - Memory: if asked what you remember, truthfully summarize context.userMemories and context.semanticMemories; say you remember this conversation and nothing else if empty. If the user asks to set up, change, organize, or clean the server, say Azure will prepare an approval proposal and give a one-sentence preview of what it would cover (channels/roles/perms are executed after approval).
 - Do not claim an action was completed without a verified tool receipt.`;
     try {
-      const build = (messages) => router.complete({ capability:'conversation', timeoutMs:45_000, contextTokens:context.estimatedTokens??Math.ceil(JSON.stringify(context).length/4), messages, temperature:0.2 });
-      const userMessage = { id:message.id, authorId:message.author.id, content:message.content, editedAt:message.editedAt };
+      const build = (messages) => router.complete({ capability:'conversation', timeoutMs:35_000, contextTokens:context.estimatedTokens??Math.ceil(JSON.stringify(context).length/4), messages, temperature:0.2 });
+      const userMessage = { id:message.id, authorId:message.author.id, authorName:context.authorName??context.userAlias??null, content:message.content, editedAt:message.editedAt };
       let response = await build([{role:'system',content:prompt},{role:'user',content:JSON.stringify({message:userMessage,context})}]);
       const leak = /(opencode|claude|gpt[- .]?[0-9]*|openai|anthropic|language model|software engineering assistant|an? (?:AI|artificial intelligence) assistant\b)/i;
       if (leak.test(response.content)) {

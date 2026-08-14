@@ -77,10 +77,10 @@ try {
   setInterval(() => {
     const router = runtime?.agent?.router;
     if (!router || Date.now() - (router.lastAttemptAt || 0) < 60_000) return;
-    router.complete({ capability: 'conversation', contextTokens: 300, timeoutMs: 25_000, messages: [{ role: 'system', content: 'You are Azure, a Discord server assistant. Reply with exactly: ok' }, { role: 'user', content: 'keepalive' }] })
+    router.complete({ capability: 'conversation', contextTokens: 300, timeoutMs: 18_000, messages: [{ role: 'system', content: 'You are Azure, a Discord server assistant. Reply with exactly: ok' }, { role: 'user', content: 'keepalive' }] })
       .then(() => logger.info({ health: router.snapshot() }, 'model keepalive ok'))
       .catch((err) => logger.warn({ err: err.message }, 'model keepalive failed'));
-  }, 120_000);
+  }, 180_000);
   const FLYCTL = '/root/.fly/bin/flyctl';
   const refreshFarmEndpoints = async () => {
     const router = runtime?.agent?.router;
