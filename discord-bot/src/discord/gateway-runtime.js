@@ -114,9 +114,14 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
   // marker, etc.) — normalize them before anything can leak into chat.
   const stripNoReply = (t) => String(t ?? '').replace(/#+\s*no[_ -]?reply\s*#*/gi, '').trim();
 
+  // ##REACT:emoji## — tolerate a missing closing '##' when the marker sits at
+  // the end of the text (the model often drops it), still never match mid-line.
+  const reactMarker = /##REACT:\s*([^#\n]{1,40})\s*#*(?=\s*(?:\n|$))/;
+  const stripReact = (t) => String(t ?? '').replace(/##REACT:\s*[^#\n]{1,40}\s*#*(?=\s*(?:\n|$))/g, '');
+
   const maybeGhostEdit = async (message, raw) => {
     if (!raw.startsWith('##GHOSTEDIT##')) return false;
-    const reactMatch = String(raw ?? '').match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
+    const reactMatch = String(raw ?? '').match(reactMarker);
     if (reactMatch) await message.react(reactMatch[1].trim()).catch(() => {});
     const scope = scopeOf(message);
     const last = ghostEditAt.get(scope) ?? 0;
@@ -134,7 +139,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
   };
 
   const sendReply = async ({ message, raw, scopeKey }) => {
-    const reactMatch = String(raw ?? '').match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
+    const reactMatch = String(raw ?? '').match(reactMarker);
     const reactEmoji = reactMatch?.[1]?.trim() ?? null;
     const cleaned = stripNoReply(reactEmoji ? String(raw).replace(reactMatch[0], '') : String(raw ?? ''));
     const inventory = await guildInventory(message);
@@ -179,7 +184,7 @@ engagement.recordResponse(scopeKey, lastId);
     const armTyping = () => { sendTyping(message); typing = setInterval(() => sendTyping(message), 9_000); typing.unref?.(); };
     const stopTyping = () => { if (typing) { clearInterval(typing); typing = null; } };
     const visibleText = () => {
-      const t = String(buffer ?? '').replace(/^##GHOSTEDIT##\s*/i, '').replace(/##REACT:\s*[^#\n]{1,40}\s*##?/g, '');
+      const t = String(buffer ?? '').replace(/^##GHOSTEDIT##\s*/i, '').replace(/##REACT:\s*[^#\n]{1,40}\s*#*(?=\s*(?:\n|$))/g, '');
       return stripNoReply(t);
     };
     const currentText = () => {
@@ -244,7 +249,7 @@ engagement.recordResponse(scopeKey, lastId);
       return final;
     }
     await editVisible();
-    const reactMatch = final.match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
+    const reactMatch = final.match(reactMarker);
     if (reactMatch) await message.react(reactMatch[1].trim()).catch(() => {});
     if (final.includes('##NO_REPLY##') || !visibleText().trim()) {
       for (const p of parts) p.delete().catch(() => {});
