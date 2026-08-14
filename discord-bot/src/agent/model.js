@@ -42,6 +42,7 @@ export class ModelRouter {
     this.health = new Map(this.profiles.map((p) => [p.id, { failures: 0, openedAt: 0, calls: 0, latencyMs: p.latencyMs }]));
     this.telemetry = options.telemetry ?? (() => {}); this.recordUsage = options.recordUsage ?? (async () => {});
     this.cliQueue = Promise.resolve();
+    this.raceCount = options.raceCount ?? 1;
     this.pacingMs = options.pacingMs ?? 35_000; this.lastAttemptAt = 0;
   }
   candidates(request, excluded = new Set()) {
@@ -51,20 +52,38 @@ export class ModelRouter {
       .map((p) => { const h = this.health.get(p.id); const contextFit = 1 - request.contextTokens / p.contextWindow; const cost = p.inputCostPerMillion + p.outputCostPerMillion; const score = p.quality * 55 + contextFit * 15 + p.priority * 5 - Math.log10(1 + cost) * 10 - Math.log10(1 + h.latencyMs) * 5; return { p, score }; })
       .sort((a, b) => b.score - a.score).map((v) => v.p);
   }
+  async #attemptOne(profile, request, attempt) {
+    const started = performance.now();
+    try {
+      const response = profile.kind === 'cli' ? await this.#completeCli(profile, request) : await this.#completeHttp(profile, request);
+      if (this.spent + response.usage.costUsd > this.budgetUsd) throw new Error('Model budget exceeded');
+      this.spent += response.usage.costUsd; this.success(profile.id, response.usage.latencyMs);
+      const record = { profileId: profile.id, capability: request.capability, attempt, ...response.usage };
+      try { await this.recordUsage(record); } catch {} this.telemetry({ event: 'model.complete', ...record });
+      return { ok: true, value: { content: response.content, usage: record, profileId: profile.id } };
+    } catch (error) {
+      this.failure(profile.id);
+      this.telemetry({ event: 'model.failure', profileId: profile.id, capability: request.capability, attempt, error: error.message });
+      return { ok: false, error };
+    }
+  }
   async complete(request) {
     const excluded = new Set(); let lastError;
+    const raceN = Math.min(this.raceCount, this.candidates(request).length);
+    if (raceN > 1 && request.race !== false) {
+      const starters = this.candidates(request).slice(0, raceN);
+      starters.forEach((p) => excluded.add(p.id));
+      const settled = await Promise.allSettled(starters.map((p) => this.#attemptOne(p, request, 0)));
+      const winner = settled.find((x) => x.status === 'fulfilled' && x.value.ok);
+      if (winner) return winner.value.value;
+      lastError = settled.find((x) => x.status === 'fulfilled')?.value?.error ?? new Error('All raced profiles failed');
+    }
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       const profile = this.candidates(request, excluded)[0];
       if (!profile) break; excluded.add(profile.id);
-      const started = performance.now();
-      try {
-        const response = profile.kind === 'cli' ? await this.#completeCli(profile, request) : await this.#completeHttp(profile, request);
-        if (this.spent + response.usage.costUsd > this.budgetUsd) throw new Error('Model budget exceeded');
-        this.spent += response.usage.costUsd; this.success(profile.id, response.usage.latencyMs);
-        const record = { profileId: profile.id, capability: request.capability, attempt, ...response.usage };
-        try { await this.recordUsage(record); } catch {} this.telemetry({ event: 'model.complete', ...record });
-        return { content: response.content, usage: record, profileId: profile.id };
-      } catch (error) { lastError = error; this.failure(profile.id); this.telemetry({ event: 'model.failure', profileId: profile.id, capability: request.capability, attempt, error: error.message }); }
+      const result = await this.#attemptOne(profile, request, attempt);
+      if (result.ok) return result.value;
+      lastError = result.error;
     }
     throw lastError ?? new Error('No healthy model profile satisfies capability and context requirements');
   }

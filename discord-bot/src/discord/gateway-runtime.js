@@ -23,6 +23,7 @@ const deletedSassAt = new Map();
 const autoReplyAt = new Map();
 const scopeBusy = new Map();
 const pendingScopes = new Map();
+const ghostEditAt = new Map();
 
 const deletedSassLines = [
   "rude. i typed that with my tiny robot hands.",
@@ -83,6 +84,23 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     const arm = setInterval(() => sendTyping(message).catch(() => {}), 9_000);
     arm.unref?.();
     try { return await work(); } finally { clearInterval(arm); }
+  };
+
+  const maybeGhostEdit = async (message, raw) => {
+    if (!raw.startsWith('##GHOSTEDIT##')) return false;
+    const scope = scopeOf(message);
+    const last = ghostEditAt.get(scope) ?? 0;
+    if (Date.now() - last < 4 * 60 * 1000) return false;
+    const content = raw.replace(/^##GHOSTEDIT##\s*/i, '').slice(0, 2000);
+    try {
+      const recent = await message.channel.messages.fetch({ limit: 6 });
+      const ours = [...recent.values()].find((m) => m.author?.id === client.user.id);
+      if (!ours) return false;
+      await ours.edit({ content, allowedMentions: { parse: [] } });
+      ghostEditAt.set(scope, Date.now());
+      logger.info({ channelId: message.channelId }, 'ghost edit applied');
+      return true;
+    } catch (err) { logger.warn({ err }, 'ghost edit failed'); return false; }
   };
 
   const sendReply = async ({ message, raw, scopeKey }) => {
@@ -221,6 +239,16 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     });
     assembled.authorName = message.member?.displayName ?? message.author.username;
     assembled.guildInventory = await guildInventory(message);
+    const channel = message.channel;
+    if (channel) {
+      assembled.currentChannel = {
+        id: channel.id,
+        name: channel.isThread?.() ? (channel.parent?.name ?? channel.name) : channel.name,
+        thread: channel.isThread?.() ? channel.name : null,
+        topic: channel.topic ?? null,
+        mentions: channel.mentions?.users ? [...channel.mentions.users.values()].map((u) => u.username) : [],
+      };
+    }
     return assembled;
   }
 
@@ -375,6 +403,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
         if (!runtime.agent?.converse) return;
         const response = await withTyping(message, () => runtime.agent.converse({ message, context: assembled, decision: active, mode: 'engaged' }));
         if (!response || response.includes('##NO_REPLY##')) return;
+        if (await maybeGhostEdit(message, response)) return;
         await sendReply({ message, raw: response, scopeKey: active.scopeKey });
       } finally {
         scopeBusy.delete(scope);
