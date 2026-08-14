@@ -13,12 +13,25 @@ export const ModelProfileSchema = z.object({
 });
 
 export function parseJson(text, schema) {
-  const cleaned = String(text).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  let value;
-  try { value = JSON.parse(cleaned); } catch (cause) { throw new Error('Model returned invalid JSON', { cause }); }
-  const result = schema.safeParse(value);
-  if (!result.success) throw new Error(`Model response failed schema validation: ${result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
-  return result.data;
+  const raw = String(text).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const candidates = [raw];
+  const open = raw.indexOf('{');
+  if (open > 0) candidates.push(raw.slice(open));
+  if (open >= 0) {
+    const close = raw.lastIndexOf('}');
+    if (close > open) candidates.push(raw.slice(open, close + 1));
+  }
+  let lastErr;
+  for (const candidate of candidates) {
+    let value;
+    try { value = JSON.parse(candidate); }
+    catch { continue; }
+    const result = schema.safeParse(value);
+    if (result.success) return result.data;
+    lastErr = result.error;
+  }
+  if (lastErr) throw new Error(`Model response failed schema validation: ${lastErr.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+  throw new Error('Model returned invalid JSON', { cause: lastErr });
 }
 
 export class ModelRouter {

@@ -10,7 +10,7 @@ import { proposalPanel, progressPanel, receiptPanel } from '../autonomy/ui.js';
 
 const observed = [Events.MessageCreate, Events.MessageUpdate, Events.MessageDelete, Events.MessageReactionAdd, Events.MessageReactionRemove, Events.InteractionCreate, Events.GuildMemberAdd, Events.GuildMemberUpdate, Events.GuildMemberRemove, Events.GuildRoleCreate, Events.GuildRoleUpdate, Events.GuildRoleDelete, Events.ChannelCreate, Events.ChannelUpdate, Events.ChannelDelete, Events.ThreadCreate, Events.ThreadUpdate, Events.ThreadDelete, Events.GuildBanAdd, Events.GuildBanRemove, Events.AutoModerationActionExecution, Events.AutoModerationRuleCreate, Events.AutoModerationRuleUpdate, Events.AutoModerationRuleDelete, Events.GuildUpdate, Events.InviteCreate, Events.InviteDelete, Events.GuildScheduledEventCreate, Events.GuildScheduledEventUpdate, Events.GuildScheduledEventDelete, Events.WebhooksUpdate];
 
-const serverOpIntent = /\b(organi[sz]e|organi[sz]ation|restructure|set ?up|setup|rearrange|structure|cleanup|clean ?up|overhaul|build|design|moderate|automate|manage)\b/i;
+const serverOpIntent = /\b(organi[sz]e|organi[sz]ation|restructure|set ?up|setup|rearrange|structure|cleanup|clean ?up|overhaul|build|design|moderate|automate|manage|market|promote|advertise|research|rebrand|rebuild|fix|improve|expand|grow|launch|revamp|upgrade)\b/i;
 const serverDomain = /\b(server|channel|categor|role|member|permission|entire|everything|whole|all|this)\b/i;
 const approvePhrase = /^(approved|approve|do it|do everything|do it all|go|go ahead|go for it|yes|confirm|just do it|yeah|yep|sounds good|approved do|approved, do)/i;
 const rejectPhrase = /^(no|reject|deny|cancel|stop|don'?t|not that|wait|hold on)/i;
@@ -21,7 +21,8 @@ const sentReplies = new Map();
 const botMessages = new Map();
 const deletedSassAt = new Map();
 const autoReplyAt = new Map();
-const ackEmoji = '👀';
+const scopeBusy = new Map();
+const pendingScopes = new Map();
 
 const deletedSassLines = [
   "rude. i typed that with my tiny robot hands.",
@@ -75,20 +76,24 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
 
   const sendTyping = async (message) => { try { await message.channel.sendTyping(); } catch { /* noop */ } };
 
-  const ackWithReaction = async (message) => {
-    try { await message.react(ackEmoji); return true; } catch { return false; }
-  };
-  const clearAckReaction = async (message) => {
-    try {
-      const reaction = message.reactions.cache.get(ackEmoji);
-      if (reaction) await reaction.users.remove(client.user.id);
-    } catch { /* noop */ }
+  // Keeps the "Azure is typing..." bubble alive (Discord typing expires after
+  // ~10s) for the whole duration of a model turn.
+  const withTyping = async (message, work) => {
+    await sendTyping(message);
+    const arm = setInterval(() => sendTyping(message).catch(() => {}), 9_000);
+    arm.unref?.();
+    try { return await work(); } finally { clearInterval(arm); }
   };
 
   const sendReply = async ({ message, raw, scopeKey }) => {
     const parts = splitParts(raw);
     const channel = message.channel;
-    const first = await message.reply({ content: parts[0], allowedMentions: { parse: [], repliedUser: false } });
+    // Use the Discord "reply" feature only when it actually helps: when the
+    // message we are answering is no longer the last one in the channel.
+    const answerIsLatest = await channel.messages.fetch({ limit: 1 }).then((ms) => ms.first()?.id === message.id).catch(() => false);
+    const first = answerIsLatest
+      ? await channel.send({ content: parts[0], allowedMentions: { parse: [] } })
+      : await message.reply({ content: parts[0], allowedMentions: { parse: [], repliedUser: false } });
     let lastId = first.id;
     botMessages.set(first.id, { channelId: channel.id, at: Date.now() });
     sentReplies.set(message.id, { botMessageId: first.id, channelId: channel.id, at: Date.now() });
@@ -184,6 +189,28 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     }
   }
 
+  const guildInventoryCache = new Map();
+
+  // Real, current server truth (channels + members) so the model never claims
+  // it "can't see" the server. Cached 60s per guild.
+  async function guildInventory(message) {
+    const guild = message.guild;
+    if (!guild) return null;
+    const cached = guildInventoryCache.get(guild.id);
+    if (cached && Date.now() - cached.at < 60_000) return cached.data;
+    try {
+      const [channels, members] = await Promise.all([guild.channels.fetch(), guild.members.fetch({ limit: 100 }).catch(() => new Map())]);
+      const channelNames = [...channels.values()]
+        .filter((c) => c.type === 0 || c.type === 5 || c.type === 15)
+        .map((c) => `#${c.name}${c.parent ? ` (in ${c.parent.name})` : ''}`)
+        .slice(0, 80);
+      const memberNames = [...members.values()].slice(0, 100).map((m) => m.displayName);
+      const data = { serverName: guild.name, memberCount: guild.memberCount ?? members.size, channels: channelNames, members: memberNames };
+      guildInventoryCache.set(guild.id, { at: Date.now(), data });
+      return data;
+    } catch (err) { logger.warn?.({ err, guildId: guild.id }, 'guild inventory fetch failed'); return null; }
+  }
+
   async function assembleContext(message) {
     const assembled = await context.assemble({
       messageId: message.id,
@@ -193,6 +220,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
       userId: message.author.id,
     });
     assembled.authorName = message.member?.displayName ?? message.author.username;
+    assembled.guildInventory = await guildInventory(message);
     return assembled;
   }
 
@@ -207,7 +235,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     autoReplyAt.set(scopeKey, now);
     if (!runtime.agent?.converse) return null;
     const assembled = await assembleContext(message);
-    const response = await runtime.agent.converse({ message, context: assembled, decision: { ...decision, reason: 'auto_decision' }, mode: 'decide' });
+    const response = await withTyping(message, () => runtime.agent.converse({ message, context: assembled, decision: { ...decision, reason: 'auto_decision' }, mode: 'decide' }));
     if (!response || response.includes('##NO_REPLY##')) return null;
     await sendReply({ message, raw: response, scopeKey });
     return true;
@@ -300,42 +328,64 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     }
 
     let active = decision;
-    if (!active.engage && !isEdit && !message.author?.bot && message.guildId && message.content.trim().length >= 3) {
-      const approved = await maybeRunChatApproval(message, isEdit);
-      if (approved) {
-        engagement.recordResponse(active.scopeKey, message.id);
-        rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed a chat-approved server proposal`, message.channelId);
-        return;
+    if (active.engage || (!isEdit && !message.author?.bot && message.guildId && message.content.trim().length >= 3)) {
+      // One model turn per scope at a time: rapid-fire follow-ups get queued
+      // and drained into a single turn on the newest message, so the bot never
+      // answers the same moment three times or attaches stale answers.
+      const scope = scopeOf(message);
+      if (scopeBusy.has(scope)) { pendingScopes.set(scope, message); return; }
+      scopeBusy.set(scope, true);
+      try {
+        if (!active.engage) {
+          const approved = await maybeRunChatApproval(message, isEdit);
+          if (approved) {
+            engagement.recordResponse(active.scopeKey, message.id);
+            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed a chat-approved server proposal`, message.channelId);
+            return;
+          }
+          if (message.guild?.ownerId === message.author?.id && serverOpIntent.test(message.content) && serverDomain.test(message.content)) {
+            const handedOff = await maybeRunServerTask(message);
+            if (handedOff) {
+              engagement.recordResponse(active.scopeKey, message.id);
+              rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: submitted a server organization proposal for approval`, message.channelId);
+              return;
+            }
+          }
+          if (await maybeAutoReply(message, decision)) return;
+        }
+        if (!active.engage) return;
+        if (!isEdit && message.guild?.ownerId === message.author?.id) {
+          const outcome = await withTyping(message, async () => {
+            if (await maybeRunChatApproval(message, isEdit)) return 'approval';
+            if (await maybeRunServerTask(message)) return 'server_task';
+            return null;
+          });
+          if (outcome === 'approval') {
+            engagement.recordResponse(active.scopeKey, message.id);
+            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed a chat-approved server proposal`, message.channelId);
+            return;
+          }
+          if (outcome === 'server_task') {
+            engagement.recordResponse(active.scopeKey, message.id);
+            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: submitted a server organization proposal for approval`, message.channelId);
+            return;
+          }
+        }
+        const assembled = await assembleContext(message);
+        if (!runtime.agent?.converse) return;
+        const response = await withTyping(message, () => runtime.agent.converse({ message, context: assembled, decision: active, mode: 'engaged' }));
+        if (!response || response.includes('##NO_REPLY##')) return;
+        await sendReply({ message, raw: response, scopeKey: active.scopeKey });
+      } finally {
+        scopeBusy.delete(scope);
+        const queued = pendingScopes.get(scope);
+        if (queued) {
+          pendingScopes.delete(scope);
+          handledIds.delete(queued.id);
+          setTimeout(() => routeMessage(queued, Boolean(queued.editedTimestamp)), 400);
+        }
       }
-      if (await maybeAutoReply(message, decision)) return;
     }
-    if (!active.engage) return;
-
-    await sendTyping(message);
-    const acked = !isEdit ? await ackWithReaction(message) : false;
-    if (!isEdit && message.guild?.ownerId === message.author?.id) {
-      const approved = await maybeRunChatApproval(message, isEdit);
-      if (approved) {
-        if (acked) await clearAckReaction(message);
-        engagement.recordResponse(active.scopeKey, message.id);
-        rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed a chat-approved server proposal`, message.channelId);
-        return;
-      }
-      const handled = await maybeRunServerTask(message);
-      if (handled) {
-        if (acked) await clearAckReaction(message);
-        engagement.recordResponse(active.scopeKey, message.id);
-        rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: submitted a server organization proposal for approval`, message.channelId);
-        return;
-      }
-    }
-
-    const assembled = await assembleContext(message);
-    if (!runtime.agent?.converse) return;
-    const response = await runtime.agent.converse({ message, context: assembled, decision: active, mode: 'engaged' });
-    if (acked) await clearAckReaction(message);
-    if (!response || response.includes('##NO_REPLY##')) return;
-    await sendReply({ message, raw: response, scopeKey: active.scopeKey });
   }
 
   async function handleMessageDelete(deleted) {
