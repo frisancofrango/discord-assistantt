@@ -1,10 +1,15 @@
 import { z } from 'zod';
+import { spawn } from 'node:child_process';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export const ModelProfileSchema = z.object({
   id: z.string().min(1), endpoint: z.string().url(), apiKey: z.string().optional(), model: z.string().min(1),
   capabilities: z.array(z.string()).min(1), contextWindow: z.number().int().positive(), quality: z.number().min(0).max(1).default(0.5),
   inputCostPerMillion: z.number().nonnegative().default(0), outputCostPerMillion: z.number().nonnegative().default(0),
   latencyMs: z.number().positive().default(3000), priority: z.number().default(0), enabled: z.boolean().default(true), headers: z.record(z.string(), z.string()).default({}),
+  kind: z.enum(['http', 'cli']).default('http'),
 });
 
 export function parseJson(text, schema) {
@@ -23,6 +28,7 @@ export class ModelRouter {
     this.maxRetries = options.maxRetries ?? 2; this.budgetUsd = options.budgetUsd ?? Infinity; this.spent = 0;
     this.health = new Map(this.profiles.map((p) => [p.id, { failures: 0, openedAt: 0, calls: 0, latencyMs: p.latencyMs }]));
     this.telemetry = options.telemetry ?? (() => {}); this.recordUsage = options.recordUsage ?? (async () => {});
+    this.cliQueue = Promise.resolve();
   }
   candidates(request, excluded = new Set()) {
     const now = Date.now();
@@ -38,19 +44,54 @@ export class ModelRouter {
       if (!profile) break; excluded.add(profile.id);
       const started = performance.now();
       try {
-        const response = await this.fetch(`${profile.endpoint.replace(/\/$/, '')}/chat/completions`, { method: 'POST', signal: AbortSignal.timeout(request.timeoutMs ?? 60_000), headers: { 'content-type': 'application/json', ...(profile.apiKey ? { authorization: `Bearer ${profile.apiKey}` } : {}), ...profile.headers }, body: JSON.stringify({ model: profile.model, messages: request.messages, temperature: request.temperature ?? 0.1, response_format: request.json ? { type: 'json_object' } : undefined }) });
-        if (!response.ok) throw new Error(`Model endpoint returned ${response.status}`);
-        const body = await response.json(); const content = body.choices?.[0]?.message?.content;
-        if (typeof content !== 'string') throw new Error('Model response had no content');
-        const usage = body.usage ?? {}; const costUsd = ((usage.prompt_tokens ?? 0) * profile.inputCostPerMillion + (usage.completion_tokens ?? 0) * profile.outputCostPerMillion) / 1_000_000;
-        if (this.spent + costUsd > this.budgetUsd) throw new Error('Model budget exceeded');
-        this.spent += costUsd; this.success(profile.id, performance.now() - started);
-        const record = { profileId: profile.id, capability: request.capability, attempt, latencyMs: Math.round(performance.now() - started), inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0, costUsd };
+        const response = profile.kind === 'cli' ? await this.#completeCli(profile, request) : await this.#completeHttp(profile, request);
+        if (this.spent + response.usage.costUsd > this.budgetUsd) throw new Error('Model budget exceeded');
+        this.spent += response.usage.costUsd; this.success(profile.id, response.usage.latencyMs);
+        const record = { profileId: profile.id, capability: request.capability, attempt, ...response.usage };
         await this.recordUsage(record); this.telemetry({ event: 'model.complete', ...record });
-        return { content, usage: record, profileId: profile.id };
+        return { content: response.content, usage: record, profileId: profile.id };
       } catch (error) { lastError = error; this.failure(profile.id); this.telemetry({ event: 'model.failure', profileId: profile.id, capability: request.capability, attempt, error: error.message }); }
     }
     throw lastError ?? new Error('No healthy model profile satisfies capability and context requirements');
+  }
+  async #completeHttp(profile, request) {
+    const started = performance.now();
+    const response = await this.fetch(`${profile.endpoint.replace(/\/$/, '')}/chat/completions`, { method: 'POST', signal: AbortSignal.timeout(request.timeoutMs ?? 60_000), headers: { 'content-type': 'application/json', ...(profile.apiKey ? { authorization: `Bearer ${profile.apiKey}` } : {}), ...profile.headers }, body: JSON.stringify({ model: profile.model, messages: request.messages, temperature: request.temperature ?? 0.1, response_format: request.json ? { type: 'json_object' } : undefined }) });
+    if (!response.ok) throw new Error(`Model endpoint returned ${response.status}`);
+    const body = await response.json(); const content = body.choices?.[0]?.message?.content;
+    if (typeof content !== 'string') throw new Error('Model response had no content');
+    const usage = body.usage ?? {};
+    return { content, usage: { latencyMs: Math.round(performance.now() - started), inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0, costUsd: ((usage.prompt_tokens ?? 0) * profile.inputCostPerMillion + (usage.completion_tokens ?? 0) * profile.outputCostPerMillion) / 1_000_000 } };
+  }
+  #completeCli(profile, request) {
+    const run = () => {
+      const started = performance.now();
+      const prompt = request.messages.map((m) => `${m.role.toUpperCase()}:\n${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`).join('\n\n') + (request.json ? '\n\nIMPORTANT: Respond with ONLY valid JSON. No markdown fences, no prose, no commentary outside the JSON.' : '');
+      return this.#spawnCli(profile, prompt, request.timeoutMs ?? 120_000).then((raw) => {
+        let content = '';
+        for (const line of raw.split('\n')) { if (!line.trim()) continue; try { const e = JSON.parse(line); if (e.type === 'text' && typeof e.part?.text === 'string') content += e.part.text; } catch {} }
+        content = content.trim();
+        if (!content) throw new Error('CLI model returned no text');
+        return { content, usage: { latencyMs: Math.round(performance.now() - started), inputTokens: 0, outputTokens: Math.ceil(content.length / 4), costUsd: 0 } };
+      });
+    };
+    const p = this.cliQueue.then(run, run);
+    this.cliQueue = p.catch(() => {});
+    return p;
+  }
+  #spawnCli(profile, prompt, timeoutMs) {
+    return mkdtemp(join(tmpdir(), 'azure-cli-')).then((dir) => {
+      const file = join(dir, 'prompt.txt');
+      return writeFile(file, prompt, 'utf8').then(() => new Promise((resolve, reject) => {
+        const child = spawn('opencode', ['run', '--pure', '--format', 'json', '-m', profile.model, 'Follow the instructions in the attached prompt and answer directly.', '-f', file], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, CI: '1', NO_COLOR: '1' } });
+        let stdout = '', stderr = ''; const limit = 4 * 1024 * 1024;
+        child.stdout.on('data', (d) => stdout = (stdout + d).slice(-limit));
+        child.stderr.on('data', (d) => stderr = (stderr + d).slice(-limit));
+        const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} reject(new Error(`CLI model timed out after ${timeoutMs}ms`)); }, timeoutMs);
+        child.on('error', reject);
+        child.on('close', (code) => { clearTimeout(timer); rm(dir, { recursive: true, force: true }).catch(() => {}); if (code !== 0) reject(new Error(`opencode run exited ${code}: ${stderr.slice(-400)}`)); else resolve(stdout); });
+      }));
+    });
   }
   success(id, latency) { const h = this.health.get(id); h.failures = 0; h.openedAt = 0; h.calls++; h.latencyMs = h.latencyMs * 0.8 + latency * 0.2; }
   failure(id) { const h = this.health.get(id); h.failures++; h.calls++; if (h.failures >= this.failureThreshold) h.openedAt = Date.now(); }
