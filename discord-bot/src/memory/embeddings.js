@@ -47,16 +47,28 @@ export class EmbeddingClient {
     const vectors = [];
     for (let i = 0; i < list.length; i += MAX_INPUTS_PER_REQUEST) {
       const batch = list.slice(i, i + MAX_INPUTS_PER_REQUEST);
-      const response = await this.fetch(`${this.baseUrl}/embeddings`, {
-        method: 'POST',
-        signal: AbortSignal.timeout(this.timeoutMs),
-        headers: { 'content-type': 'application/json', ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}) },
-        body: JSON.stringify({ model: this.model, input: batch }),
-      });
-      if (!response.ok) throw new EmbeddingError(`Embeddings endpoint returned ${response.status}`, await response.text().catch(() => ''));
-      const body = await response.json();
-      const data = Array.isArray(body?.data) ? body.data : [];
-      if (data.length !== batch.length) throw new EmbeddingError('Embeddings endpoint returned a mismatched batch');
+      let data = null;
+      for (const path of ['embeddings', 'embed']) {
+        if (data && data.length === batch.length) break;
+        try {
+          const response = await this.fetch(`${this.baseUrl}/${path}`, {
+            method: 'POST',
+            signal: AbortSignal.timeout(this.timeoutMs),
+            headers: { 'content-type': 'application/json', ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}) },
+            body: JSON.stringify({ model: this.model, input: batch }),
+          });
+          if (!response.ok) throw new EmbeddingError(`Embeddings endpoint returned ${response.status}`, await response.text().catch(() => ''));
+          const body = await response.json();
+          data = Array.isArray(body?.data) ? body.data.map((d) => ({ embedding: d.embedding, index: d.index ?? null }))
+            : Array.isArray(body?.embeddings) ? body.embeddings.map((e) => ({ embedding: e, index: null }))
+            : Array.isArray(body?.embedding) && body.embedding.length ? [{ embedding: body.embedding, index: null }]
+            : null;
+        } catch (err) {
+          if (err instanceof EmbeddingError && data) continue;
+          throw err;
+        }
+      }
+      if (!data || data.length !== batch.length) throw new EmbeddingError('Embeddings endpoint returned a mismatched batch');
       for (const item of data) {
         if (item.embedding.length !== this.dimensions) throw new EmbeddingError(`Embedding dimension mismatch: expected ${this.dimensions}, got ${item.embedding.length}. Set EMBED_DIMENSIONS to match your model.`);
         vectors.push({ index: item.index ?? null, embedding: item.embedding });

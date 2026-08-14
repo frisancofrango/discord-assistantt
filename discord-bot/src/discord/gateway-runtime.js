@@ -37,7 +37,6 @@ const deletedSassLines = [
 // reaction instead of a 15-30s farm round-trip.
 const instantRules = [
   { re: /^(hello|hi|hey|yo|sup|wassup|hola|heya|ello|good morning|good night)\b[!. ]*$/i, react: null, reply: (n) => `hey ${n} 👋` },
-  { re: /^(ok|okay|kkk?|alright+|aight+|bet|cool|nice|good|lol|lmfao?|haha+|rip|gg)\b[!. ]*$/i, react: '👍' },
   { re: /^(bruh|jfc|wtf|wth|omg|ugh|damn|oof|yikes|ouch)\b[!. ]*$/i, react: '😅' },
   { re: /^(what|huh|uh|wut)\??[!. ]*$/i, react: '🤔' },
 ];
@@ -423,14 +422,26 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     if (prior) {
       // The user deleted a message we answered. If our reply is still the last
       // message in the channel and recent, remove the now-orphaned reply.
+      let cleanedUp = false;
       try {
         const last = await deleted.channel.messages.fetch({ limit: 1 }).then((ms) => ms.first()).catch(() => null);
         if (last?.id === prior.botMessageId && Date.now() - prior.at < 30 * 60 * 1000) {
           await deleted.channel.messages.delete(prior.botMessageId).catch(() => {});
+          cleanedUp = true;
           logger.info({ messageId: deletedId }, 'orphaned reply removed after user deleted their message');
         }
       } catch (err) { logger.warn({ err }, 'orphaned reply cleanup failed'); }
       sentReplies.delete(deletedId);
+      if (cleanedUp) {
+        // Say a playful line instead of vanishing silently, bounded by cooldown.
+        const key = deleted.channel?.id ?? deleted.channelId ?? 'dm';
+        const lastSass = deletedSassAt.get(key) ?? 0;
+        if (Date.now() - lastSass < 5 * 60 * 1000) return;
+        deletedSassAt.set(key, Date.now());
+        setTimeout(async () => {
+          try { await deleted.channel.send({ content: deletedSassLines[Math.floor(Math.random() * deletedSassLines.length)], allowedMentions: { parse: [] } }); } catch { /* noop */ }
+        }, 250);
+      }
       return;
     }
     if (botMessages.has(deletedId)) {
@@ -446,8 +457,6 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
       deletedSassAt.set(key, Date.now());
       setTimeout(async () => {
         try {
-          const last = await channel?.messages.fetch({ limit: 1 }).then((ms) => ms.first()).catch(() => null);
-          if (last?.id === deletedId || !last || last.author?.id !== client.user.id) return;
           const line = deletedSassLines[Math.floor(Math.random() * deletedSassLines.length)];
           await channel.send({ content: line, allowedMentions: { parse: [] } });
         } catch { /* noop */ }
