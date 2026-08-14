@@ -44,7 +44,7 @@ const schema = z.object({
   DISCORD_CONTEXT_TOKENS: z.coerce.number().int().min(1000).max(100000).default(6000),
   DISCORD_CONTEXT_MESSAGES: z.coerce.number().int().min(5).max(200).default(30),
   ENGAGEMENT_COOLDOWN_MS: z.coerce.number().int().min(1000).max(3600000).default(45000),
-  ENGAGEMENT_PASSIVE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.72),
+  ENGAGEMENT_PASSIVE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.5),
   AUTONOMY_TIER_COUNT: z.coerce.number().int().min(2).max(3).default(3),
   APPROVAL_TTL_MS: z.coerce.number().int().min(1000).max(86400000).default(900000),
   APPROVAL_TOKEN_PEPPER: z.string().default(''),
