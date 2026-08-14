@@ -50,15 +50,15 @@ function splitParts(text) {
 }
 
 // Model-driven [PART n] is unreliable, so also split long answers in code:
-// anything over ~1850 chars becomes several messages by sentence boundaries.
+// anything over ~1250 chars becomes several messages by sentence boundaries.
 function splitLong(text) {
   const segments = String(text ?? '').split(/\[PART\s*\d+\]\s*/);
   let parts = segments.map((s) => s.trim()).filter(Boolean);
-  if (parts.length === 1 && parts[0].length > 1850) {
+  if (parts.length === 1 && parts[0].length > 1250) {
     const out = [];
     let buf = '';
     for (const sentence of parts[0].match(/[^.!?\n]+[.!?\n]+|[^.!?\n]+$/g) ?? [parts[0]]) {
-      if (buf && (buf + sentence).length > 1850) { out.push(buf.trim()); buf = sentence; }
+      if (buf && (buf + sentence).length > 1250) { out.push(buf.trim()); buf = sentence; }
       else buf += sentence;
     }
     if (buf.trim()) out.push(buf.trim());
@@ -162,13 +162,16 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
 
   async function maybeRunServerTask(message) {
     if (!message.guildId || message.guild?.ownerId !== message.author?.id) return null;
-    const probe = [message.channel?.name, message.content].filter(Boolean).join(' ');
+    const content = message.content.trim();
+    if (/\?\s*$/.test(content) || /^(how|what|why|which|when|where|who|can|could|should|would|is|are|do|does|will|did)\b/i.test(content)) return null;
+    const probe = [message.channel?.name, content].filter(Boolean).join(' ');
     if (!serverOpIntent.test(probe) || !serverDomain.test(probe)) return null;
     if (!runtime.agent?.planner || !runtime.autonomy) return null;
     const botId = client.user.id;
     try {
       const guild = (await runtime.db.query(`INSERT INTO guilds(discord_id,name) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET name=excluded.name RETURNING *`, [message.guildId, message.guild?.name ?? null])).rows[0];
       const user = (await runtime.db.query(`INSERT INTO users(discord_id,username) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET username=excluded.username RETURNING *`, [message.author.id, message.author.username])).rows[0];
+      const ack = await message.reply({ content: `on it. inspecting the server first...`, allowedMentions: { parse: [] } });
       const snapshotReceipt = await tools.invoke('guild.snapshot', { guildId: message.guildId }, { client, db: runtime.db, idempotencyKey: `chat-task:${message.id}:snapshot`, autonomy: 'advisor', actor: { authenticated: true, guildMember: true, isOwner: true, permissions: [] }, correlationId: correlationId() });
       const before = snapshotReceipt.output.snapshot;
       logger.info({ guildId: message.guildId }, 'owner chat task: snapshot captured, planning');
@@ -179,8 +182,13 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
       const proposal = runtime.autonomy.hydrate(row);
       proposal.beforeSnapshot = before;
       const grant = await runtime.autonomy.approvals.issue({ proposal, actorId: message.author.id });
-      const panel = await message.reply({ ...proposalPanel(proposal, grant.token), allowedMentions: { parse: [] } });
+      const actor = { id: message.author.id, guildId: message.guildId, authenticated: true, bot: false, isOwner: true, permissions: message.memberPermissions?.toArray?.() ?? [] };
+      const safe = proposal.machinePlan.steps.filter((s) => !s.irreversible && s.risk !== 'high').map((s) => s.id);
+      const decision = await runtime.autonomy.approvals.decide({ token: grant.token, proposal, actor, decision: 'approve_all', selectedStepIds: safe, policy: { default: { autonomy: 'operator' } }, budget: { limit: runtime.agent.router?.budgetUsd ?? 5, spent: 0 } });
+      const panel = await message.reply({ ...progressPanel({ goal: proposal.goal, status: 'running', stage: 'preflight', completed: 0, total: decision.approvedStepIds?.length ?? decision.approved_step_ids?.length ?? 0 }), allowedMentions: { parse: [] } });
       await runtime.autonomy.store.updateProposal(row.id, { discord_message_id: panel.id });
+      const result = await runtime.autonomy.executor.start({ proposal, decision, actor });
+      await panel.edit(receiptPanel(result.receipt)).catch(() => {});
       return { task, plan };
     } catch (err) {
       logger.warn({ err, content: message.content }, 'chat task handoff failed; falling back to chat');
@@ -399,7 +407,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     }
 
     let active = decision;
-    if (active.engage || (!isEdit && !message.author?.bot && message.guildId && message.content.trim().length >= 3)) {
+    if (active.engage || isEdit || (!isEdit && !message.author?.bot && message.guildId && message.content.trim().length >= 3)) {
       // One model turn per scope at a time: rapid-fire follow-ups get queued
       // and drained into a single turn on the newest message, so the bot never
       // answers the same moment three times or attaches stale answers.
@@ -407,14 +415,14 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
       if (scopeBusy.has(scope)) { pendingScopes.set(scope, message); return; }
       scopeBusy.set(scope, true);
       try {
-        if (!active.engage) {
+        if (!active.engage && !isEdit) {
           const approved = await maybeRunChatApproval(message, isEdit);
           if (approved) {
             engagement.recordResponse(active.scopeKey, message.id);
             rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed a chat-approved server proposal`, message.channelId);
             return;
           }
-          if (message.guild?.ownerId === message.author?.id && serverOpIntent.test(message.content) && serverDomain.test(message.content)) {
+          if (message.guild?.ownerId === message.author?.id && serverOpIntent.test(`#${message.channel?.name ?? ''} ${message.content}`) && serverDomain.test(`#${message.channel?.name ?? ''} ${message.content}`)) {
             const handedOff = await maybeRunServerTask(message);
             if (handedOff) {
               engagement.recordResponse(active.scopeKey, message.id);
@@ -424,7 +432,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
           }
           if (await maybeAutoReply(message, decision)) return;
         }
-        if (!active.engage) return;
+        if (!active.engage && !isEdit) return;
         if (!isEdit && message.guild?.ownerId === message.author?.id) {
           const outcome = await withTyping(message, async () => {
             if (await maybeRunChatApproval(message, isEdit)) return 'approval';
