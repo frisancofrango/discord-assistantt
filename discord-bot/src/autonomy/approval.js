@@ -29,7 +29,7 @@ export class ApprovalService {
       const grant = await tx.lockApprovalToken(tokenHash);
       if (!grant || grant.consumedAt || grant.consumed_at) throw new Error('Approval token is invalid or was already used');
       if (new Date(grant.expiresAt ?? grant.expires_at) <= this.now()) throw new Error('Approval token expired');
-      if (String(grant.proposalId ?? grant.proposal_id) !== String(proposal.id) || Number(grant.proposalRevision ?? grant.proposal_revision) !== proposal.revision || String(grant.actorId ?? grant.actor_id) !== actor.id || String(grant.guildId ?? grant.guild_id) !== proposal.guildId) throw new Error('Approval token binding mismatch');
+      if (String(grant.proposalId ?? grant.proposal_id) !== String(proposal.id) || Number(grant.proposalRevision ?? grant.proposal_revision) !== proposal.revision || String(grant.actorId ?? grant.actor_discord_id) !== actor.id || String(grant.guildId ?? grant.guild_discord_id) !== proposal.guildId) throw new Error('Approval token binding mismatch');
       const authorization = evaluateApprovalPolicy({ proposal, actor, policy, budget });
       if (!authorization.allowed && decision.startsWith('approve')) throw Object.assign(new Error(authorization.reason), { escalation: authorization.escalate });
       const available = new Set(proposal.machinePlan.steps.map((step) => step.id));

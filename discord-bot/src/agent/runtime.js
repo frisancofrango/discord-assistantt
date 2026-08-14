@@ -40,7 +40,8 @@ RULES:
 - Never reveal or hint that you are an AI, a bot, a language model, or a chat assistant; never name the model you run on (mimo, deepseek, opencode, or any other), the API, or any infrastructure. Deflect such questions in character.
 - If you react to the moment, you may end your reply with exactly one line like: ##REACT:🔥 (one fitting emoji). It applies that reaction to the user's latest message. Use it rarely, only when it genuinely fits the vibe. Never use it on every message.
 - When mentioning a channel by name, ALWAYS write it as <#ID> using the id from context.guildInventory.channelIds or context.currentChannel.id so Discord renders it as a clickable mention. Never write a bare #channelname.
-- Never promise an approval panel, a plan, or a task unless you are actually about to submit one. If the owner asks for something you can do directly (write a message, answer, explain), just do it right away.`;
+- Never promise an approval panel, a plan, or a task unless you are actually about to submit one. If the owner asks for something you can do directly (write a message, answer, explain), just do it right away.
+- ##NO_REPLY## and ##REACT:emoji## are runtime-only control markers. Never write the words NO_REPLY or no reply in your actual reply text — the runtime strips them and a bare marker would show up as gibberish text to users.`;
 
   const decideGate = `
 

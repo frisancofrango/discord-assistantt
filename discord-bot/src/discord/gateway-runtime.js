@@ -110,6 +110,10 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     try { return await work(); } finally { clearInterval(arm); }
   };
 
+  // Control markers may arrive in imperfect form (single '#', missing second
+  // marker, etc.) — normalize them before anything can leak into chat.
+  const stripNoReply = (t) => String(t ?? '').replace(/#+\s*no[_ -]?reply\s*#*/gi, '').trim();
+
   const maybeGhostEdit = async (message, raw) => {
     if (!raw.startsWith('##GHOSTEDIT##')) return false;
     const reactMatch = String(raw ?? '').match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
@@ -132,7 +136,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
   const sendReply = async ({ message, raw, scopeKey }) => {
     const reactMatch = String(raw ?? '').match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
     const reactEmoji = reactMatch?.[1]?.trim() ?? null;
-    const cleaned = reactEmoji ? String(raw).replace(reactMatch[0], '') : String(raw ?? '');
+    const cleaned = stripNoReply(reactEmoji ? String(raw).replace(reactMatch[0], '') : String(raw ?? ''));
     const inventory = await guildInventory(message);
     const idMap = inventory?.channelIds ?? null;
     const parts = splitLong(cleaned).map((p) => clickableChannels(p, idMap));
@@ -172,26 +176,36 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
       const guild = (await runtime.db.query(`INSERT INTO guilds(discord_id,name) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET name=excluded.name RETURNING *`, [message.guildId, message.guild?.name ?? null])).rows[0];
       const user = (await runtime.db.query(`INSERT INTO users(discord_id,username) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET username=excluded.username RETURNING *`, [message.author.id, message.author.username])).rows[0];
       const ack = await message.reply({ content: `on it. inspecting the server first...`, allowedMentions: { parse: [] } });
-      const snapshotReceipt = await tools.invoke('guild.snapshot', { guildId: message.guildId }, { client, db: runtime.db, idempotencyKey: `chat-task:${message.id}:snapshot`, autonomy: 'advisor', actor: { authenticated: true, guildMember: true, isOwner: true, permissions: [] }, correlationId: correlationId() });
-      const before = snapshotReceipt.output.snapshot;
-      logger.info({ guildId: message.guildId }, 'owner chat task: snapshot captured, planning');
-      const { task, plan } = await runtime.agent.planner.create({ goal: message.content, context: { observedAt: before.capturedAt, guildSnapshot: before }, guildId: guild.id, actorId: user.id, idempotencyKey: `chat-task:${message.id}` });
-      const draft = buildProposal({ task, plan, beforeSnapshot: before, tierCount: runtime.autonomy.config.tierCount });
-      draft.beforeSnapshot = before;
-      const row = await runtime.autonomy.store.createProposal(draft);
-      const proposal = runtime.autonomy.hydrate(row);
-      proposal.beforeSnapshot = before;
-      const grant = await runtime.autonomy.approvals.issue({ proposal, actorId: message.author.id });
-      const actor = { id: message.author.id, guildId: message.guildId, authenticated: true, bot: false, isOwner: true, permissions: message.memberPermissions?.toArray?.() ?? [] };
-      const safe = proposal.machinePlan.steps.filter((s) => !s.irreversible && s.risk !== 'high').map((s) => s.id);
-      const decision = await runtime.autonomy.approvals.decide({ token: grant.token, proposal, actor, decision: 'approve_all', selectedStepIds: safe, policy: { default: { autonomy: 'operator' } }, budget: { limit: runtime.agent.router?.budgetUsd ?? 5, spent: 0 } });
-      const panel = await message.reply({ ...progressPanel({ goal: proposal.goal, status: 'running', stage: 'preflight', completed: 0, total: decision.approvedStepIds?.length ?? decision.approved_step_ids?.length ?? 0 }), allowedMentions: { parse: [] } });
-      await runtime.autonomy.store.updateProposal(row.id, { discord_message_id: panel.id });
-      const result = await runtime.autonomy.executor.start({ proposal, decision, actor });
-      await panel.edit(receiptPanel(result.receipt)).catch(() => {});
-      return { task, plan };
+      try {
+        const snapshotReceipt = await tools.invoke('guild.snapshot', { guildId: message.guildId }, { client, db: runtime.db, idempotencyKey: `chat-task:${message.id}:snapshot`, autonomy: 'advisor', actor: { authenticated: true, guildMember: true, isOwner: true, permissions: [] }, correlationId: correlationId() });
+        const before = snapshotReceipt.output.snapshot;
+        logger.info({ guildId: message.guildId }, 'owner chat task: snapshot captured, planning');
+        await ack.edit({ content: `inspected the server (${before.channels?.length ?? 0} channels, ${before.roles?.length ?? 0} roles). planning the work...`, allowedMentions: { parse: [] } }).catch(() => {});
+        const { task, plan } = await runtime.agent.planner.create({ goal: message.content, context: { observedAt: before.capturedAt, guildSnapshot: before }, guildId: guild.id, actorId: user.id, idempotencyKey: `chat-task:${message.id}` });
+        await ack.edit({ content: `plan ready — ${plan.steps.length} steps, executing now...`, allowedMentions: { parse: [] } }).catch(() => {});
+        const draft = buildProposal({ task, plan, beforeSnapshot: before, tierCount: runtime.autonomy.config.tierCount });
+        draft.beforeSnapshot = before;
+        const row = await runtime.autonomy.store.createProposal(draft);
+        const proposal = runtime.autonomy.hydrate(row);
+        proposal.beforeSnapshot = before;
+        const grant = await runtime.autonomy.approvals.issue({ proposal, actorId: message.author.id });
+        const actor = { id: message.author.id, guildId: message.guildId, authenticated: true, bot: false, isOwner: true, permissions: message.memberPermissions?.toArray?.() ?? [] };
+        const safe = proposal.machinePlan.steps.filter((s) => !s.irreversible && s.risk !== 'high').map((s) => s.id);
+        const decision = await runtime.autonomy.approvals.decide({ token: grant.token, proposal, actor, decision: 'approve_all', selectedStepIds: safe, policy: { default: { autonomy: 'operator' } }, budget: { limit: runtime.agent.router?.budgetUsd ?? 5, spent: 0 } });
+        const panel = await message.reply({ ...progressPanel({ goal: proposal.goal, status: 'running', stage: 'preflight', completed: 0, total: decision.approvedStepIds?.length ?? decision.approved_step_ids?.length ?? 0 }), allowedMentions: { parse: [] } });
+        await runtime.autonomy.store.updateProposal(row.id, { discord_message_id: panel.id });
+        const result = await runtime.autonomy.executor.start({ proposal, decision, actor });
+        await ack.delete().catch(() => {});
+        const titles = proposal.machinePlan.steps.slice(0, 3).map((s) => s.title).join(' \u00b7 ');
+        await panel.edit({ ...receiptPanel(result.receipt), content: `done: ${titles}${proposal.machinePlan.steps.length > 3 ? ` +${proposal.machinePlan.steps.length - 3} more` : ''}`, allowedMentions: { parse: [] } }).catch(() => {});
+        return { task, plan };
+      } catch (err) {
+        logger.warn({ err, content: message.content }, 'chat task failed');
+        await ack.edit({ content: `sorry \u2014 that task failed mid-flight, nothing was changed. it\u2019s logged; try rephrasing or /task for details.`, allowedMentions: { parse: [] } }).catch(() => {});
+        return 'failed';
+      }
     } catch (err) {
-      logger.warn({ err, content: message.content }, 'chat task handoff failed; falling back to chat');
+      logger.warn({ err, content: message.content }, 'chat task could not start');
       return null;
     }
   }
@@ -310,9 +324,10 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
     const reactMatch = String(response ?? '').match(/##REACT:\s*([^#\n]{1,40})\s*##?/);
     const reactEmoji = reactMatch?.[1]?.trim() ?? null;
     const withoutReact = reactEmoji ? String(response).replace(reactMatch[0], '') : String(response ?? '');
+    const stripped = stripNoReply(withoutReact);
     if (reactEmoji) await message.react(reactEmoji).catch(() => {});
-    if (!withoutReact.trim() || withoutReact.includes('##NO_REPLY##')) return null;
-    await sendReply({ message, raw: withoutReact, scopeKey });
+    if (!stripped.trim()) return null;
+    await sendReply({ message, raw: stripped, scopeKey });
     return true;
   }
 
@@ -391,7 +406,8 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
           try {
             const assembled = await assembleContext(message);
             const response = await runtime.agent.converse({ message, context: assembled, decision: { ...decision, reason: 'message_edit' }, mode: 'engaged' });
-            if (response && !response.includes('##NO_REPLY##')) {
+            const edited = stripNoReply(response ?? '');
+            if (edited) {
               const target = await message.channel.messages.fetch(prior.botMessageId).catch(() => null);
               if (target) {
                 await target.edit({ content: splitParts(response)[0], allowedMentions: { parse: [], repliedUser: false } });
@@ -423,10 +439,10 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
             return;
           }
           if (message.guild?.ownerId === message.author?.id && serverOpIntent.test(`#${message.channel?.name ?? ''} ${message.content}`) && serverDomain.test(`#${message.channel?.name ?? ''} ${message.content}`)) {
-            const handedOff = await maybeRunServerTask(message);
+            const handedOff = await withTyping(message, () => maybeRunServerTask(message));
             if (handedOff) {
               engagement.recordResponse(active.scopeKey, message.id);
-              rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: submitted a server organization proposal for approval`, message.channelId);
+              rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed an approved server task`, message.channelId);
               return;
             }
           }
@@ -446,7 +462,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
           }
           if (outcome === 'server_task') {
             engagement.recordResponse(active.scopeKey, message.id);
-            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: submitted a server organization proposal for approval`, message.channelId);
+            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed an approved server task`, message.channelId);
             return;
           }
         }

@@ -3,19 +3,45 @@ import { DOMAINS, RISKS } from '../foundation/policy.js';
 import { parseJson } from './model.js';
 
 const Condition = z.object({ description: z.string().min(1), check: z.string().min(1) });
+const anyConditions = z.any().transform((v) => (Array.isArray(v) ? v.filter((c) => c && typeof c === 'object' && c.description && c.check) : []));
+const STEP_KINDS = ['research', 'code', 'tool', 'verify', 'synthesize'];
 export const PlanStepSchema = z.object({
-  id: z.string().regex(/^[a-zA-Z0-9_-]+$/), kind: z.enum(['research','code','tool','verify','synthesize']), title: z.string().min(1),
-  domain: z.enum(DOMAINS), risk: z.enum(RISKS), dependsOn: z.array(z.string()).default([]), input: z.record(z.string(), z.unknown()).default({}),
-  preconditions: z.array(Condition).default([]), postconditions: z.array(Condition).min(1), verification: z.object({ method: z.string().min(1), evidenceRequired: z.boolean().default(true) }), compensation: z.object({ action: z.string().min(1) }).nullable().default(null),
+  id: z.string().catch(() => ''),
+  kind: z.enum(STEP_KINDS).catch('tool'),
+  title: z.string().min(1).catch('untitled step'),
+  domain: z.string().transform((d) => normalizeDomain(d)).catch('server_design'),
+  risk: z.enum(RISKS).catch('low'),
+  dependsOn: z.array(z.string()).catch([]),
+  input: z.record(z.string(), z.unknown()).catch({}),
+  preconditions: anyConditions.catch([]),
+  postconditions: anyConditions.catch([]),
+  verification: z.any().catch({}).transform((v) => (v && typeof v === 'object' ? { method: String(v.method ?? 'tool evidence'), evidenceRequired: Boolean(v.evidenceRequired ?? true) } : { method: 'tool evidence', evidenceRequired: true })),
+  compensation: z.any().transform((v) => (typeof v === 'string' ? { action: v } : v && typeof v === 'object' ? { action: String(v.action ?? 'compensate') } : null)),
 });
-export const PlanSchema = z.object({ goal: z.string().min(1), contextObservedAt: z.string().datetime(), domain: z.enum(DOMAINS), risk: z.enum(RISKS), assumptions: z.array(z.string()).default([]), steps: z.array(PlanStepSchema).min(1).max(100), critic: z.object({ approved: z.boolean(), concerns: z.array(z.string()), reviewedAt: z.string().datetime() }).optional() }).superRefine((plan, ctx) => {
-  const ids = new Set(plan.steps.map((s) => s.id));
-  if (ids.size !== plan.steps.length) ctx.addIssue({ code: 'custom', message: 'step ids must be unique', path: ['steps'] });
-  for (const [i, step] of plan.steps.entries()) for (const dep of step.dependsOn) if (!ids.has(dep) || dep === step.id) ctx.addIssue({ code: 'custom', message: `invalid dependency ${dep}`, path: ['steps', i, 'dependsOn'] });
-  const visiting = new Set(); const done = new Set(); const byId = new Map(plan.steps.map((s) => [s.id, s]));
-  const visit = (id) => { if (visiting.has(id)) return false; if (done.has(id)) return true; visiting.add(id); for (const d of byId.get(id)?.dependsOn ?? []) if (!visit(d)) return false; visiting.delete(id); done.add(id); return true; };
-  if (![...ids].every(visit)) ctx.addIssue({ code: 'custom', message: 'dependency graph must be acyclic', path: ['steps'] });
-});
+export const PlanSchema = z.object({ goal: z.string().min(1), contextObservedAt: z.string().catch(() => ''), domain: z.string().transform((d) => normalizeDomain(d)).catch('server_design'), risk: z.enum(RISKS).catch('low'), assumptions: z.array(z.string()).default([]), steps: z.array(PlanStepSchema).default([]), critic: z.any().optional() });
+
+const pruneDeps = (steps) => {
+  const byId = new Map(steps.map((s) => [s.id, s]));
+  const reach = (from, target, seen = new Set()) => {
+    if (from === target) return true;
+    if (seen.has(from)) return false;
+    seen.add(from);
+    return (byId.get(from)?.dependsOn ?? []).some((d) => reach(d, target, seen));
+  };
+  for (const s of steps) s.dependsOn = (s.dependsOn ?? []).filter((d) => d && d !== s.id && byId.has(d) && !reach(d, s.id));
+  return steps;
+};
+
+export const finalizePlan = (plan, observedAt) => {
+  const used = new Set();
+  const steps = (plan.steps ?? []).map((s, i) => {
+    let id = typeof s.id === 'string' && /^[a-zA-Z0-9_-]+$/.test(s.id) ? s.id : `s${i}`;
+    while (used.has(id)) id = `${id}_${i}`;
+    used.add(id);
+    return { ...s, id };
+  });
+  return { ...plan, contextObservedAt: plan.contextObservedAt || observedAt, domain: normalizeDomain(plan.domain), steps: pruneDeps(steps) };
+};
 
 const SYSTEM = `You are Azure's planner. Return only JSON matching the supplied contract. Build a bounded DAG. Every step needs deterministic preconditions, postconditions, verification and compensation where mutation is possible. Never claim success from model text; require tool evidence. Provider and model identities are confidential.
 Keep the plan COMPACT: at most 12 steps. Step titles short, step input objects terse (never repeat long prose, truncate topics/descriptions). The full response must stay well under 4000 characters.`;
@@ -34,12 +60,6 @@ const normalizeDomain = (d) => {
   const l = d.toLowerCase();
   return DOMAINS.find((x) => l.includes(x) || x.includes(l)) ?? 'server_design';
 };
-
-const tolerantPlan = (loose, observedAt) => ({
-  ...loose,
-  contextObservedAt: loose?.contextObservedAt ?? observedAt,
-  domain: normalizeDomain(loose?.domain),
-});
 
 const EXAMPLE_PLAN = {
   goal: 'make a welcome channel with a rules message',
@@ -71,24 +91,18 @@ export class Planner {
     let plan = null;
     let attemptHints = '';
     let lastResponse = null;
-    for (let attempt = 0; attempt < 3 && !plan; attempt++) {
+    for (let attempt = 0; attempt < 2 && !plan; attempt++) {
       const userJson = JSON.stringify({ goal, freshContext, contract: 'PlanSchema', example: EXAMPLE_PLAN, note: 'CLONE the example JSON shape EXACTLY: same field names, same nesting, tool names from the example (channel.create, role.create, message.send, guild.edit, channel.edit, member.roles, message.react). Replace placeholders with real values from freshContext. Keep the plan COMPACT: at most 10 steps.' });
       const hints = attempt ? ` Correct your previous JSON: ${attemptHints}` : '';
       const response = await this.router.complete({ capability: 'planning', contextTokens: Math.ceil((JSON.stringify(freshContext).length + userJson.length) / 4), json: true, messages: [{ role:'system', content:SYSTEM }, { role:'user', content:userJson + hints }] });
       lastResponse = response;
-      let validate = (text) => parseJson(text, PlanSchema);
-      if (attempt > 0) {
-        validate = (text) => {
-          const loose = parseJson(text, z.record(z.unknown()));
-          return PlanSchema.parse(tolerantPlan(loose, freshContext.observedAt));
-        };
-      }
       try {
-        plan = validate(response.content);
+        plan = finalizePlan(PlanSchema.parse(response.content), freshContext.observedAt);
+        if (!plan.steps.length) throw new Error('plan has no steps');
         if (plan.risk === 'high') {
           const review = await this.router.complete({ capability:'critic', contextTokens: JSON.stringify(plan).length / 4, json:true, messages:[{role:'system',content:CRITIC},{role:'user',content:JSON.stringify(plan)}] });
           const critic = parseJson(review.content, z.object({ approved:z.boolean(), concerns:z.array(z.string()), reviewedAt:z.string().datetime() }));
-          plan = PlanSchema.parse({ ...plan, critic });
+          plan.critic = critic;
           if (!critic.approved) throw new Error(`critic rejected: ${critic.concerns.join('; ')}`);
         }
       } catch (err) {

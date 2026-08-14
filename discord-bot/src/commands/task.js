@@ -29,7 +29,8 @@ export default {
       const decision = await runtime.autonomy.approvals.decide({ token: grant.token, proposal, actor, decision: 'approve_all', selectedStepIds: safe, policy: { default: { autonomy: 'operator' } }, budget: { limit: runtime.agent.router?.budgetUsd ?? 5, spent: 0 } });
       await interaction.editReply({ ...progressPanel({ goal: proposal.goal, status: 'running', stage: 'preflight', completed: 0, total: decision.approvedStepIds?.length ?? decision.approved_step_ids?.length ?? 0 }) });
       const result = await runtime.autonomy.executor.start({ proposal, decision, actor });
-      await interaction.editReply({ ...receiptPanel(result.receipt) }).catch(() => {});
+      const titles = proposal.machinePlan.steps.slice(0, 3).map((s) => s.title).join(' \u00b7 ');
+      await interaction.editReply({ ...receiptPanel(result.receipt), content: `done: ${titles}${proposal.machinePlan.steps.length > 3 ? ` +${proposal.machinePlan.steps.length - 3} more` : ''}` }).catch(() => {});
     } catch (err) {
       client.logger?.error?.({ err, goal }, 'slash task failed');
       await interaction.editReply({ content: `task failed: ${String(err?.message ?? err).slice(0, 800)}` }).catch(() => {});
