@@ -113,7 +113,16 @@ export class ModelRouter {
             if (buffer.includes('[DONE]')) break;
           }
         }
-        if (!text.trim()) throw new Error('Model stream returned no content');
+        if (!text.trim()) {
+          // The model legitimately produced no text (e.g. a turn where it only
+          // emitted markers/tools). Returning empty avoids the slow classic
+          // fallback chain; callers treat '' like a no-reply.
+          const record = { profileId: profile.id, capability: request.capability, attempt: 0, latencyMs: Math.round(performance.now() - started), inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0, costUsd: 0 };
+          this.success(profile.id, record.latencyMs);
+          try { await this.recordUsage(record); } catch {}
+          this.telemetry({ event: 'model.complete', ...record });
+          return { content: '', usage: record, profileId: profile.id };
+        }
         const record = { profileId: profile.id, capability: request.capability, attempt: 0, latencyMs: Math.round(performance.now() - started), inputTokens: usage.prompt_tokens ?? 0, outputTokens: usage.completion_tokens ?? 0, costUsd: 0 };
         if (this.spent + record.costUsd > this.budgetUsd) throw new Error('Model budget exceeded');
         this.spent += record.costUsd;

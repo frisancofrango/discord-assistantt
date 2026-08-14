@@ -35,8 +35,13 @@ const deletedSassLines = [
 
 // Zero-model instant handling for trivial traffic: greeting text or a single
 // reaction instead of a 15-30s farm round-trip.
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const instantRules = [
   { re: /^(hello|hi|hey|yo|sup|wassup|hola|heya|ello|good morning|good night)\b[!. ]*$/i, react: null, reply: (n) => `hey ${n} 👋` },
+  { re: /^(?:how(?:'?s| is| are| r)(?: u| you| ya| it)(?: doin| doing| going)?|how (?:u|you|ya|it)(?: doin| doing| going)?|hows (?:it|life)(?: going)?)\b[!. ]*$/i, react: null, reply: () => pick([`doin good, just vibing. you? 😎`, `hangin in there, you?`, `chillin, what's up?`, `busy bein awesome. how bout you?`]) },
+  { re: /^(?:that'?s|that) (?:good|great|awesome|sweet|perfect|nice|cool|dope|fire|lit)\b[!. ]*$/i, react: null, reply: () => pick([`glad to hear it 😎`, `nice, good stuff`, `told you it would be`, `as expected of you`]) },
+  { re: /^(?:nice|cool|sweet|awesome|dope|fire|lit|bet|fr|facts|valid)\b[!. ]*$/i, react: '😎' },
+  { re: /^(?:lol|lmao|lmfao|rofl|haha|hehe)\b[!. ]*$/i, react: '😂' },
   { re: /^(bruh|jfc|wtf|wth|omg|ugh|damn|oof|yikes|ouch)\b[!. ]*$/i, react: '😅' },
   { re: /^(what|huh|uh|wut)\??[!. ]*$/i, react: '🤔' },
 ];
@@ -178,6 +183,9 @@ engagement.recordResponse(scopeKey, lastId);
   // when nothing visible should remain.
   async function streamReply({ message, context, decision, mode, scopeKey }) {
     if (!runtime.agent?.converse) return null;
+    // One reply per user message, ever: a decide-mode turn that lost its stream
+    // and an engaged-mode turn can otherwise double-post the same answer.
+    if (sentReplies.has(message.id)) return null;
     const channel = message.channel;
     let posted = null, parts = [], buffer = '', firstPosted = false, idMap = null;
     let editTimer = null, typing = null;
@@ -378,24 +386,32 @@ engagement.recordResponse(scopeKey, lastId);
       const [channels, members] = await Promise.all([guild.channels.fetch(), guild.members.fetch({ limit: 100 }).catch(() => new Map())]);
       const found = [...channels.values()]
         .filter((c) => c.type === 0 || c.type === 5 || c.type === 15)
-        .slice(0, 80);
+        .slice(0, 40);
       const channelNames = found.map((c) => `#${c.name}${c.parent ? ` (in ${c.parent.name})` : ''}`);
       const channelIds = Object.fromEntries(found.map((c) => [c.name, c.id]));
-      const memberNames = [...members.values()].slice(0, 100).map((m) => m.displayName);
+      const memberNames = [...members.values()].slice(0, 40).map((m) => m.displayName);
       const data = { serverName: guild.name, memberCount: guild.memberCount ?? members.size, channels: channelNames, channelIds, members: memberNames };
       guildInventoryCache.set(guild.id, { at: Date.now(), data });
       return data;
     } catch (err) { logger.warn?.({ err, guildId: guild.id }, 'guild inventory fetch failed'); return null; }
   }
 
-  async function assembleContext(message) {
+  async function assembleContext(message, { lean = false } = {}) {
     const assembled = await context.assemble({
       messageId: message.id,
       guildId: message.guildId,
       channelId: message.channel?.isThread?.() ? message.channel.parentId : message.channelId,
       threadId: message.channel?.isThread?.() ? message.channelId : null,
       userId: message.author.id,
+      maxTokens: lean ? 1500 : 2200,
     });
+    if (lean) {
+      assembled.recentMessages = assembled.recentMessages.slice(-8);
+      assembled.exactReferenceChain = assembled.exactReferenceChain.slice(-3);
+      assembled.userMemories = assembled.userMemories.slice(0, 10);
+      assembled.semanticMemories = [];
+      assembled.activeTasks = [];
+    }
     assembled.authorName = message.member?.displayName ?? message.author.username;
     assembled.guildInventory = await guildInventory(message);
     const channel = message.channel;
@@ -421,7 +437,7 @@ engagement.recordResponse(scopeKey, lastId);
     if (now - lastAuto < 8_000) return null;
     autoReplyAt.set(scopeKey, now);
     if (!runtime.agent?.converse) return null;
-    const assembled = await assembleContext(message);
+    const assembled = await assembleContext(message, { lean: true });
     const response = await streamReply({ message, context: assembled, decision: { ...decision, reason: 'auto_decision' }, mode: 'decide', scopeKey });
     return response === null ? false : true;
   }
