@@ -49,7 +49,7 @@ export class ModelRouter {
         if (this.spent + response.usage.costUsd > this.budgetUsd) throw new Error('Model budget exceeded');
         this.spent += response.usage.costUsd; this.success(profile.id, response.usage.latencyMs);
         const record = { profileId: profile.id, capability: request.capability, attempt, ...response.usage };
-        await this.recordUsage(record); this.telemetry({ event: 'model.complete', ...record });
+        try { await this.recordUsage(record); } catch {} this.telemetry({ event: 'model.complete', ...record });
         return { content: response.content, usage: record, profileId: profile.id };
       } catch (error) { lastError = error; this.failure(profile.id); this.telemetry({ event: 'model.failure', profileId: profile.id, capability: request.capability, attempt, error: error.message }); }
     }

@@ -1,6 +1,7 @@
 import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js';
 import { createDiscordRuntime } from './discord/gateway-runtime.js';
 import { readdirSync } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { config } from './config.js';
@@ -80,6 +81,26 @@ try {
       .then(() => logger.info({ health: router.snapshot() }, 'model keepalive ok'))
       .catch((err) => logger.warn({ err: err.message }, 'model keepalive failed'));
   }, 120_000);
+  const FLYCTL = '/root/.fly/bin/flyctl';
+  const refreshFarmEndpoints = async () => {
+    const router = runtime?.agent?.router;
+    if (!router || !process.env.FLY_APP_NAME) return;
+    const out = await new Promise((resolve, reject) => execFile(FLYCTL, ['machine', 'list', '--app', process.env.FLY_APP_NAME, '--json'], { timeout: 20000 }, (err, stdout) => err ? reject(err) : resolve(stdout)));
+    const machines = JSON.parse(out);
+    for (const m of machines) {
+      const region = /^sess-(.+)$/.exec(m.name)?.[1];
+      if (!region) continue;
+      const profile = router.profiles.find((p) => p.id === `farm-${region}`);
+      if (!profile || !m.private_ip) continue;
+      const endpoint = `http://[${m.private_ip}]:80/v1`;
+      if (profile.endpoint !== endpoint) {
+        profile.endpoint = endpoint;
+        logger.info({ profile: profile.id, endpoint }, 'farm endpoint refreshed');
+      }
+    }
+  };
+  setInterval(() => refreshFarmEndpoints().catch((err) => logger.debug({ err: err.message }, 'farm refresh failed')), 120_000);
+  setTimeout(() => refreshFarmEndpoints().catch(() => {}), 5000);
   if (config.discord.deployCommandsOnStart && config.clientId) {
     (async () => {
       try {
