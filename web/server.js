@@ -23,12 +23,14 @@ const MIME_TYPES = {
 const server = http.createServer((req, res) => {
   let reqPath = req.url.split('?')[0];
   if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
-  if (reqPath === '/pricing' || reqPath === '/pricing/') reqPath = '/pricing.html';
-  if (reqPath === '/dashboard' || reqPath === '/dashboard/') reqPath = '/dashboard.html';
 
   let filePath = path.join(__dirname, reqPath);
-  if (!fs.existsSync(filePath) && fs.existsSync(path.join(__dirname, 'public', reqPath))) {
+  if (!fs.existsSync(filePath) && fs.existsSync(filePath + '.html')) {
+    filePath = filePath + '.html';
+  } else if (!fs.existsSync(filePath) && fs.existsSync(path.join(__dirname, 'public', reqPath))) {
     filePath = path.join(__dirname, 'public', reqPath);
+  } else if (!fs.existsSync(filePath) && fs.existsSync(path.join(__dirname, 'public', reqPath + '.html'))) {
+    filePath = path.join(__dirname, 'public', reqPath + '.html');
   }
 
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
