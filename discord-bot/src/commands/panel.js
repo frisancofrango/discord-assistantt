@@ -16,14 +16,20 @@ export default {
     const settings = await native.settings.getSettings(interaction.guildId);
     const products = await native.commerce.listProducts(interaction.guildId);
     const coupons = await native.coupons.listCoupons(interaction.guildId);
+    const pixConfig = await native.pix.getPixConfig(interaction.guildId);
+    const commerceChannels = await native.cartChannel.getCommerceChannels(interaction.guildId);
+    const vendorsCount = (await client.runtime.db.query(`SELECT count(DISTINCT vendor_user_id)::int as count FROM product_vendors`, [])).rows[0]?.count || 0;
 
     const panel = operatorDashboardPanel({
-      tab: 'commerce',
+      category: 'commerce',
       guildId: interaction.guildId,
       settings,
       data: {
         products,
         coupons,
+        pixConfig,
+        commerceChannels,
+        vendorsCount,
       },
     });
 
@@ -34,3 +40,4 @@ export default {
     });
   },
 };
+

@@ -64,53 +64,45 @@ async function handleStringSelect(interaction, client) {
   const native = client.runtime?.native;
   const ctx = actorContext(interaction);
 
-  // Control Panel Tab Navigation
-  if (customId === 'panel:nav') {
-    const tab = value;
+  // Control Panel Category Navigation
+  if (customId === 'panel:cat_select' || customId === 'panel:nav') {
+    const category = value;
     const settings = await native.settings.getSettings(interaction.guildId);
     let data = {};
 
-    if (tab === 'commerce') {
+    if (category === 'commerce') {
       data.products = await native.commerce.listProducts(interaction.guildId);
       data.coupons = await native.coupons.listCoupons(interaction.guildId);
-    } else if (tab === 'ai') {
-      const nodes = await native.aiStudio.listKnowledgeNodes(interaction.guildId);
-      data.knowledgeCount = nodes.length;
-    } else if (tab === 'tickets') {
-      data.openTickets = (await client.runtime.db.query(`SELECT count(*)::int FROM tickets WHERE guild_id = $1 AND status != 'closed'`, [interaction.guildId])).rows[0]?.count || 0;
-      data.cannedCount = (await client.runtime.db.query(`SELECT count(*)::int FROM ticket_canned_responses WHERE guild_id = $1`, [interaction.guildId])).rows[0]?.count || 0;
-    } else if (tab === 'wallet') {
+      data.pixConfig = await native.pix.getPixConfig(interaction.guildId);
+      data.commerceChannels = await native.cartChannel.getCommerceChannels(interaction.guildId);
+      data.vendorsCount = (await client.runtime.db.query(`SELECT count(DISTINCT vendor_user_id)::int as count FROM product_vendors`, [])).rows[0]?.count || 0;
+    } else if (category === 'economy' || category === 'wallet' || category === 'loyalty') {
       const stats = (await client.runtime.db.query(`SELECT count(*)::int as count, sum(balance_minor)::bigint as total FROM wallets WHERE guild_id = $1`, [interaction.guildId])).rows[0];
       data.activeWallets = stats?.count || 0;
       data.totalBalanceMinor = Number(stats?.total || 0);
-    } else if (tab === 'loyalty') {
       const board = await native.loyalty.getLeaderboard(interaction.guildId, 5);
       data.topBuyerCount = board.length;
       data.totalCashbackMinor = board.reduce((s, b) => s + b.totalCashbackMinor, 0);
-    } else if (tab === 'schedules') {
+    } else if (category === 'ai') {
+      const nodes = await native.aiStudio.listKnowledgeNodes(interaction.guildId);
+      data.knowledgeCount = nodes.length;
+    } else if (category === 'support' || category === 'tickets' || category === 'schedules') {
+      data.openTickets = (await client.runtime.db.query(`SELECT count(*)::int FROM tickets WHERE guild_id = $1 AND status != 'closed'`, [interaction.guildId])).rows[0]?.count || 0;
+      data.cannedCount = (await client.runtime.db.query(`SELECT count(*)::int FROM ticket_canned_responses WHERE guild_id = $1`, [interaction.guildId])).rows[0]?.count || 0;
       data.hours = await native.schedule.getOperatingHours(interaction.guildId);
-    } else if (tab === 'marketing') {
-      const drops = await native.marketing.listFlashDrops(interaction.guildId);
-      const reviews = await native.marketing.listReviews(interaction.guildId, 5);
-      data.dropsCount = drops.length;
-      data.reviewsCount = reviews.length;
-    } else if (tab === 'backups') {
+    } else if (category === 'security' || category === 'backups' || category === 'roblox') {
       const backupsList = await native.backup.listBackups(interaction.guildId);
       const stats = await native.backup.getOAuthStats(interaction.guildId);
       data.totalBackups = backupsList.length;
       data.oauthMembers = stats.totalMembersBackedUp;
       data.activeTokens = stats.activeTokensCount;
-    } else if (tab === 'roblox') {
       data.linkedCount = (await client.runtime.db.query(`SELECT count(*)::int FROM roblox_links WHERE guild_id = $1`, [interaction.guildId])).rows[0]?.count || 0;
-    } else if (tab === 'pix_store') {
-      data.pixConfig = await native.pix.getPixConfig(interaction.guildId);
-      data.commerceChannels = await native.cartChannel.getCommerceChannels(interaction.guildId);
-      data.vendorsCount = (await client.runtime.db.query(`SELECT count(DISTINCT vendor_user_id)::int as count FROM product_vendors`, [])).rows[0]?.count || 0;
+      data.quarantinedCount = 0;
     }
 
     return interaction.update({
       flags: V2,
-      components: [operatorDashboardPanel({ tab, guildId: interaction.guildId, data, settings })],
+      components: [operatorDashboardPanel({ category, guildId: interaction.guildId, data, settings })],
     });
   }
 

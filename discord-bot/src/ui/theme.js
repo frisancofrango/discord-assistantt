@@ -116,14 +116,15 @@ export const select = {
       .setMinValues(minValues)
       .setMaxValues(maxValues)
       .addOptions(
-        options.map((o) =>
-          new StringSelectMenuOptionBuilder()
+        options.map((o) => {
+          const opt = new StringSelectMenuOptionBuilder()
             .setLabel(o.label)
             .setValue(o.value)
             .setDescription(o.description || '')
-            .setDefault(Boolean(o.default))
-            .setEmoji(o.emoji || undefined)
-        )
+            .setDefault(Boolean(o.default));
+          if (o.emoji) opt.setEmoji(o.emoji);
+          return opt;
+        })
       ),
   user: (customId, placeholder, minValues = 1, maxValues = 1) =>
     new UserSelectMenuBuilder()
@@ -513,365 +514,218 @@ export function helpMenuPanel() {
 }
 
 // --------------------------------------------------------------------------
-// ADVANCED OPERATOR CONTROL PANELS (Multi-Tab Interactive Dashboard)
+// ADVANCED OPERATOR CONTROL PANELS (5-Category Nested Architecture)
 // --------------------------------------------------------------------------
 
 /**
- * Build root multi-tab Operator Control Panel.
+ * Build root multi-category nested Operator Control Center.
  */
-export function operatorDashboardPanel({ tab = 'commerce', guildId, data = {}, settings = {} }) {
+export function operatorDashboardPanel({ category = 'commerce', subtab = 'overview', guildId, data = {}, settings = {} }) {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
 
-  c.addTextDisplayComponents(text('# AZURE OPERATOR CONTROL CENTER'));
-  c.addTextDisplayComponents(text('-# Real-time visual server management, commerce, neural AI & support hub.'));
-  c.addSeparatorComponents(divider(false));
-
-  // Navigation Dropdown (10 Dedicated Operating Tabs)
-  const navOptions = [
-    { label: '🛍️ Commerce & Catalog', value: 'commerce', description: 'Catalog, live inventory, keypool & coupons', default: tab === 'commerce' },
-    { label: '💳 Digital Wallet & Ledger', value: 'wallet', description: 'Member balances, bonuses, affiliate earnings', default: tab === 'wallet' },
-    { label: '🏆 Buyer Loyalty & Cashback', value: 'loyalty', description: 'VIP tiers, spend progression & leaderboard', default: tab === 'loyalty' },
-    { label: '🤖 Autonomous AI Studio', value: 'ai', description: 'Personas, knowledge ingestion, prompt sandbox & autonomy', default: tab === 'ai' },
-    { label: '🎫 Support & Ticket Desk', value: 'tickets', description: 'Live ticket queue, SLA metrics, canned responses & transcripts', default: tab === 'tickets' },
-    { label: '⏰ Operating Hours & Schedules', value: 'schedules', description: 'Support shifts, office hours & channel night-mode locks', default: tab === 'schedules' },
-    { label: '📣 Marketing & Flash Drops', value: 'marketing', description: 'Broadcast campaigns, flash drops & review incentives', default: tab === 'marketing' },
-    { label: '🛡️ Security Fortress', value: 'security', description: 'Anti-nuke rate limiters, whitelist & emergency lockdown', default: tab === 'security' },
-    { label: '🔄 Server & Member Backups', value: 'backups', description: 'Server snapshots, 1-click restore & OAuth2 member migration', default: tab === 'backups' },
-    { label: '🎮 Roblox Matrix', value: 'roblox', description: '70/30 fee calculator, gamepass sync & user lookup', default: tab === 'roblox' },
-    { label: '🇧🇷 Brazilian PIX & Loja', value: 'pix_store', description: 'PIX credentials, cart channels & multi-seller config', default: tab === 'pix_store' },
+  // Category Definitions
+  const categories = [
+    { label: '🛍️ Vendas & Loja Brasil', value: 'commerce', description: 'Catálogo, Estoque, Gateway PIX, Carrinhos Privados & Cupons', default: category === 'commerce' },
+    { label: '💳 Economia & Transações', value: 'economy', description: 'Carteiras Digitais, Vault Escrow, Cashback VIP & Ranking', default: category === 'economy' },
+    { label: '🤖 AI Studio & Autonomia', value: 'ai', description: 'Personas Neurais, Memória Vetorial RAG & Sandbox de Testes', default: category === 'ai' },
+    { label: '🎫 Atendimento & Operações', value: 'support', description: 'Central de Tickets, Respostas Rápidas, Turnos & Trancas', default: category === 'support' },
+    { label: '🛡️ Segurança, Defesa & Backups', value: 'security', description: 'Anti-Nuke, AutoMod, Snapshots de Servidor, OAuth2 & Roblox', default: category === 'security' },
   ];
 
-  c.addActionRowComponents(
-    new ActionRowBuilder().addComponents(select.string('panel:nav', 'Navigate Console Tabs...', navOptions))
-  );
+  const currentCatObj = categories.find((cat) => cat.value === category) || categories[0];
+
+  c.addTextDisplayComponents(text(`# CONSOLE AZURE › ${currentCatObj.label.toUpperCase()}`));
+  c.addTextDisplayComponents(text(`-# Painel visual de controle corporativo · Servidor: \`${guildId}\``));
   c.addSeparatorComponents(divider(false));
 
-  // Tab Content
-  if (tab === 'commerce') {
-    appendCommerceTab(c, data);
-  } else if (tab === 'wallet') {
-    appendWalletTab(c, data);
-  } else if (tab === 'loyalty') {
-    appendLoyaltyTab(c, data);
-  } else if (tab === 'ai') {
-    appendAiTab(c, data, settings);
-  } else if (tab === 'tickets') {
-    appendTicketsTab(c, data);
-  } else if (tab === 'schedules') {
-    appendSchedulesTab(c, data);
-  } else if (tab === 'marketing') {
-    appendMarketingTab(c, data);
-  } else if (tab === 'security') {
-    appendSecurityTab(c, data, settings);
-  } else if (tab === 'backups') {
-    appendBackupsTab(c, data);
-  } else if (tab === 'roblox') {
-    appendRobloxTab(c, data);
-  } else if (tab === 'pix_store') {
-    appendPixStoreTab(c, data);
-  } else if (tab === 'analytics') {
-    appendAnalyticsTab(c, data);
+  // Category Selector Dropdown
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(select.string('panel:cat_select', 'Alternar Categoria Principal...', categories))
+  );
+  c.addSeparatorComponents(spacer(false));
+
+  // Render Category Content
+  if (category === 'commerce') {
+    renderCommerceCategory(c, data, subtab);
+  } else if (category === 'economy') {
+    renderEconomyCategory(c, data, subtab);
+  } else if (category === 'ai') {
+    renderAiCategory(c, data, settings, subtab);
+  } else if (category === 'support') {
+    renderSupportCategory(c, data, subtab);
+  } else if (category === 'security') {
+    renderSecurityCategory(c, data, settings, subtab);
   }
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text(`-# Azure OS v1.2.0 · Authenticated Operator Console · Server ID: \`${guildId}\``));
+  c.addTextDisplayComponents(text(`-# Azure OS v2.0 · Arquitetura Modular Aninhada · Componentes V2 Puros`));
   return c;
 }
 
-function appendCommerceTab(c, { products = [], coupons = [], totalRevenueMinor = 0 }) {
-  c.addTextDisplayComponents(text(`## 🛍️ Commerce & Catalog Manager\nTotal Catalog Products: **${products.length}** | Active Coupons: **${coupons.length}**`));
+// --------------------------------------------------------------------------
+// 1. VENDAS & LOJA BRASIL CATEGORY
+// --------------------------------------------------------------------------
+function renderCommerceCategory(c, { products = [], coupons = [], pixConfig = {}, commerceChannels = {}, vendorsCount = 0 }, subtab) {
+  const pixStatus = pixConfig.enabled ? '🟢 **PIX OPERACIONAL**' : '🔴 **PIX INATIVO**';
+  const cartCat = commerceChannels.cart_category_id ? `<#${commerceChannels.cart_category_id}>` : '*Direto no Servidor*';
+  const revCh = commerceChannels.reviews_channel_id ? `<#${commerceChannels.reviews_channel_id}>` : '*Desativado*';
+
+  c.addTextDisplayComponents(text(
+    `## 🛍️ Hub de Vendas, Catálogo & Gateway Brasil\n` +
+    `> **Produtos Ativos:** **${products.length}** itens | **Cupons:** **${coupons.length}** ativos\n` +
+    `> **Status Gateway:** ${pixStatus} | **Moeda:** \`${commerceChannels.currency || 'BRL'}\`\n` +
+    `> **Canais Integrados:** Carrinhos (${cartCat}) · Avaliações (${revCh})`
+  ));
   c.addSeparatorComponents(spacer(false));
 
   if (products.length) {
     const list = products.slice(0, 4).map((p) => {
       const v = p.variants?.[0];
-      const stock = v?.stock !== null ? `Stock: **${v.availableStock ?? v.stock}**` : 'Stock: **∞**';
+      const stock = v?.stock !== null ? `Estoque: **${v.availableStock ?? v.stock}**` : 'Estoque: **∞**';
       const price = v ? formatMoney(v.priceMinor, v.currency) : 'N/A';
       return `> **${p.name}** (\`${p.sku}\`) — **${price}** (${stock})`;
     }).join('\n');
-    c.addTextDisplayComponents(text(`### Active Catalog Items\n${list}`));
+    c.addTextDisplayComponents(text(`### 📦 Itens em Destaque no Catálogo\n${list}`));
   } else {
-    c.addTextDisplayComponents(text('No products found in the catalog.'));
+    c.addTextDisplayComponents(text('Nenhum produto cadastrado no catálogo ainda.'));
   }
 
-  const buttons = [
-    button.primary('panel:product:add_modal', '➕ Add Product'),
-    button.neutral('panel:product:manage_stock', '📦 Adjust Stock'),
-    button.neutral('panel:coupon:create_modal', '🏷️ Create Coupon'),
-    button.neutral('store:view', '👁️ Preview Store'),
-  ];
-
   c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      button.primary('panel:product:add_modal', '➕ Novo Produto'),
+      button.neutral('panel:product:manage_stock', '📦 Ajustar Estoque'),
+      button.neutral('panel:coupon:create_modal', '🏷️ Criar Cupom'),
+      button.neutral('panel:pix:test_charge', '🪙 PIX de Teste'),
+      button.neutral('store:view', '🛍️ Ver Loja')
+    )
+  );
 }
 
-function appendWalletTab(c, { totalBalanceMinor = 0, currency = 'USD', activeWallets = 0 }) {
+// --------------------------------------------------------------------------
+// 2. ECONOMIA & TRANSAÇÕES CATEGORY
+// --------------------------------------------------------------------------
+function renderEconomyCategory(c, { totalBalanceMinor = 0, currency = 'USD', activeWallets = 0, topBuyerCount = 0, totalCashbackMinor = 0 }, subtab) {
   const totalFormatted = formatMoney(totalBalanceMinor, currency);
+
   c.addTextDisplayComponents(text(
-    `## 💳 Digital Wallet & Economy\n` +
-    `Total Escrow Liquidity: **${totalFormatted}**\n` +
-    `Active Wallet Holders: **${activeWallets}**`
+    `## 💳 Hub de Economia, Escrow & Fidelidade VIP\n` +
+    `> **Liquidez em Custódia:** **${totalFormatted}** | **Carteiras Ativas:** **${activeWallets}**\n` +
+    `> **Cashback VIP Distribuído:** **${formatMoney(totalCashbackMinor, 'USD')}**\n` +
+    `> **Tiers VIP Ativos:** 5 Níveis (Bronze 1% → Obsidiana 10%)`
   ));
   c.addSeparatorComponents(spacer(false));
 
   c.addTextDisplayComponents(text(
-    `### Member Wallet Operations\n` +
-    `Select a user below to inspect their balance, audit transactions, or grant bonuses:`
+    `### 🔍 Auditoria Rápida de Carteira de Membro\n` +
+    `Selecione um usuário para auditar saldo, transações ou conceder bônus:`
   ));
 
   c.addActionRowComponents(
-    new ActionRowBuilder().addComponents(select.user('panel:wallet_inspect_user', 'Select member to inspect wallet...'))
+    new ActionRowBuilder().addComponents(select.user('panel:wallet_inspect_user', 'Selecione membro para auditar carteira...'))
   );
 
-  const buttons = [
-    button.primary('panel:wallet:grant_bonus', '🎁 Grant Balance Bonus'),
-    button.neutral('wallet:view', '💳 My Wallet'),
-  ];
   c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      button.primary('panel:wallet:grant_bonus', '🎁 Conceder Bônus de Saldo'),
+      button.neutral('ranking:view', '🏆 Top Spenders Leaderboard'),
+      button.neutral('wallet:view', '💳 Minha Carteira')
+    )
+  );
 }
 
-function appendLoyaltyTab(c, { topBuyerCount = 0, totalCashbackMinor = 0 }) {
-  c.addTextDisplayComponents(text(
-    `## 🏆 Buyer Loyalty & VIP Cashback\n` +
-    `Tier System: **5 Active Tiers** (Bronze 1% ${THEME.glyph.arrow} Obsidian 10%)\n` +
-    `Total Distributed Cashback: **${formatMoney(totalCashbackMinor, 'USD')}**`
-  ));
-  c.addSeparatorComponents(spacer(false));
-
-  c.addTextDisplayComponents(text(
-    `### Loyalty Progression Rules\n` +
-    `> 🥉 **Bronze** ($10+ spend) ${THEME.glyph.arrow} **1%** Cashback\n` +
-    `> 🥈 **Silver** ($50+ spend) ${THEME.glyph.arrow} **2%** Cashback\n` +
-    `> 🥇 **Gold** ($150+ spend) ${THEME.glyph.arrow} **4%** Cashback\n` +
-    `> 💎 **Diamond** ($500+ spend) ${THEME.glyph.arrow} **7%** Cashback\n` +
-    `> 👑 **Obsidian** ($1,000+ spend) ${THEME.glyph.arrow} **10%** Cashback`
-  ));
-
-  const buttons = [
-    button.primary('panel:loyalty:view_board', '🥇 Top Buyer Leaderboard'),
-    button.neutral('loyalty:status', '👤 My Loyalty Status'),
-  ];
-  c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
-}
-
-function appendSchedulesTab(c, { hours = {}, lockedChannelsCount = 0 }) {
-  const statusStr = hours.isOpen ? '🟢 **ONLINE & OPEN**' : '🔴 **CLOSED (OUT OF OFFICE)**';
-  const daysStr = hours.days ? hours.days.map((d) => d.toUpperCase()).join(', ') : 'MON - SUN';
-
-  c.addTextDisplayComponents(text(
-    `## ⏰ Operating Hours & Channel Shifts\n` +
-    `Current Shift Status: ${statusStr}\n` +
-    `Shift Working Hours: **${hours.startTime || '09:00'} — ${hours.endTime || '22:00'} ${hours.timezone || 'UTC'}**\n` +
-    `Operational Days: **${daysStr}**`
-  ));
-  c.addSeparatorComponents(spacer(false));
-
-  c.addTextDisplayComponents(text(
-    `### Support Availability Notice\n` +
-    `> *"${hours.outOfOfficeMessage || 'Staff offline. Please leave message.'}"*`
-  ));
-
-  const buttons = [
-    button.primary('panel:schedule:edit_hours', '⚙️ Set Shift Hours Modal'),
-    button.neutral('channel:hours', '👁️ View Member Schedule Notice'),
-  ];
-  c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
-}
-
-function appendMarketingTab(c, { dropsCount = 0, reviewsCount = 0 }) {
-  c.addTextDisplayComponents(text(
-    `## 📣 Marketing, Flash Drops & Reviews\n` +
-    `Active Flash Drops: **${dropsCount}** | Verified Customer Reviews: **${reviewsCount}**`
-  ));
-  c.addSeparatorComponents(spacer(false));
-
-  c.addTextDisplayComponents(text(
-    `### Growth & Engagement Campaigns\n` +
-    `Launch time-limited product countdowns or inspect customer feedback:`
-  ));
-
-  const buttons = [
-    button.primary('panel:marketing:create_drop', '⚡ Create Flash Drop'),
-    button.neutral('marketing:drops_list', '📋 View Active Drops'),
-    button.neutral('marketing:reviews', '⭐ Customer Reviews'),
-  ];
-  c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
-}
-
-function appendAiTab(c, { knowledgeCount = 0 }, settings = {}) {
+// --------------------------------------------------------------------------
+// 3. AI STUDIO & AUTONOMIA CATEGORY
+// --------------------------------------------------------------------------
+function renderAiCategory(c, { knowledgeCount = 0 }, settings = {}, subtab) {
   const persona = settings.aiPersona || 'concierge';
   const autonomy = settings.aiAutonomy || 'operator';
 
   c.addTextDisplayComponents(text(
-    `## 🤖 Autonomous AI Studio\n` +
-    `Active Persona: **${persona.toUpperCase()}** | Autonomy Mode: **${autonomy.toUpperCase()}**\n` +
-    `Ingested Knowledge Nodes: **${knowledgeCount}** embedded in vector memory`
+    `## 🤖 Hub de Inteligência Artificial & Memória Neural\n` +
+    `> **Persona Ativa:** **${persona.toUpperCase()}** | **Nível de Autonomia:** **${autonomy.toUpperCase()}**\n` +
+    `> **Nós de Conhecimento (RAG):** **${knowledgeCount}** documentos indexados em memória vetorial`
   ));
   c.addSeparatorComponents(spacer(false));
 
-  // Persona Switcher
   const personaOptions = [
-    { label: '🛎️ Concierge & Guide', value: 'concierge', description: 'Helpful, warm, clear server guide', default: persona === 'concierge' },
-    { label: '💰 Commerce & Sales Closer', value: 'sales_closer', description: 'High-converting deal & pricing expert', default: persona === 'sales_closer' },
-    { label: '🛡️ Security Warden', value: 'security_warden', description: 'Strict anti-raid and rule guardian', default: persona === 'security_warden' },
-    { label: '⚙️ Custom Persona', value: 'custom', description: 'User-configured custom system prompt', default: persona === 'custom' },
+    { label: '🛎️ Concierge & Guia', value: 'concierge', description: 'Recepção amigável, clara e acolhedora', default: persona === 'concierge' },
+    { label: '💰 Closer de Vendas & Negociação', value: 'sales_closer', description: 'Especialista em fechamento de pedidos e ofertas', default: persona === 'sales_closer' },
+    { label: '🛡️ Guardião de Segurança', value: 'security_warden', description: 'Rigoroso com regras, anti-raid e moderação', default: persona === 'security_warden' },
+    { label: '⚙️ Persona Personalizada', value: 'custom', description: 'Prompt de sistema configurado pelo operador', default: persona === 'custom' },
   ];
 
   c.addActionRowComponents(
-    new ActionRowBuilder().addComponents(select.string('panel:ai:persona_select', 'Switch AI Persona...', personaOptions))
+    new ActionRowBuilder().addComponents(select.string('panel:ai:persona_select', 'Trocar Persona da IA...', personaOptions))
   );
 
-  const buttons = [
-    button.primary('panel:ai:ingest_modal', '📚 Ingest Knowledge (RAG)'),
-    button.neutral('panel:ai:sandbox_modal', '🧪 AI Prompt Sandbox'),
-    button.neutral('panel:ai:autonomy_toggle', `⚡ Mode: ${autonomy.toUpperCase()}`),
-  ];
   c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      button.primary('panel:ai:ingest_modal', '📚 Ingerir Conhecimento (RAG)'),
+      button.neutral('panel:ai:sandbox_modal', '🧪 Sandbox de Prompts'),
+      button.neutral('panel:ai:autonomy_toggle', `⚡ Modo: ${autonomy.toUpperCase()}`)
+    )
+  );
 }
 
-function appendTicketsTab(c, { openTickets = 0, avgSlaMinutes = 12, cannedCount = 0 }) {
+// --------------------------------------------------------------------------
+// 4. ATENDIMENTO & OPERAÇÕES CATEGORY
+// --------------------------------------------------------------------------
+function renderSupportCategory(c, { openTickets = 0, avgSlaMinutes = 12, cannedCount = 0, hours = {} }, subtab) {
+  const statusStr = hours.isOpen ? '🟢 **ONLINE & ATENDENDO**' : '🔴 **FECHADO (FORA DO EXPEDIENTE)**';
+
   c.addTextDisplayComponents(text(
-    `## 🎫 Support Command Desk\n` +
-    `Open Tickets: **${openTickets}** | Average Resolution SLA: **${avgSlaMinutes}m**\n` +
-    `Canned Quick-Replies: **${cannedCount}**`
+    `## 🎫 Hub de Atendimento, SLA & Horários de Suporte\n` +
+    `> **Fila de Tickets Abertos:** **${openTickets}** | **SLA Médio de Resolução:** **${avgSlaMinutes}m**\n` +
+    `> **Templates Rápidos (Canned):** **${cannedCount}** cadastrados\n` +
+    `> **Status do Expediente:** ${statusStr} (${hours.startTime || '09:00'} - ${hours.endTime || '22:00'} ${hours.timezone || 'UTC'})`
   ));
   c.addSeparatorComponents(spacer(false));
 
-  c.addTextDisplayComponents(text(
-    `### Staff Operations\n` +
-    `Manage open tickets, configure automatic canned replies, or reassign tickets:`
-  ));
-
-  const buttons = [
-    button.primary('panel:tickets:list_open', '📋 View Live Queue'),
-    button.neutral('panel:tickets:add_canned', '💬 Add Canned Response'),
-    button.neutral('ticket:open_prompt', '➕ Test New Ticket'),
-  ];
-  c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      button.primary('panel:tickets:list_open', '📋 Ver Fila de Tickets'),
+      button.neutral('panel:tickets:add_canned', '💬 Novo Template Rápido'),
+      button.neutral('panel:schedule:edit_hours', '⏰ Definir Horário de Expediente'),
+      button.neutral('ticket:open_prompt', '➕ Testar Novo Ticket')
+    )
+  );
 }
 
-function appendSecurityTab(c, { quarantinedCount = 0 }, settings = {}) {
+// --------------------------------------------------------------------------
+// 5. SEGURANÇA, DEFESA & BACKUPS CATEGORY
+// --------------------------------------------------------------------------
+function renderSecurityCategory(c, { quarantinedCount = 0, totalBackups = 0, oauthMembers = 0, activeTokens = 0, linkedCount = 0 }, settings = {}, subtab) {
   const shield = settings.antiRaidLevel || 'standard';
-  const captcha = settings.verificationMode || 'math_captcha';
 
   c.addTextDisplayComponents(text(
-    `## 🛡️ Security & Anti-Raid Fortress\n` +
-    `Shield Level: **${shield.toUpperCase()}** | Captcha Type: **${captcha.toUpperCase()}**\n` +
-    `Quarantined Suspicious Accounts: **${quarantinedCount}**`
+    `## 🛡️ Hub de Segurança, Defesa & Recuperação\n` +
+    `> **Nível Anti-Raid:** **${shield.toUpperCase()}** | **Contas em Quarentena:** **${quarantinedCount}**\n` +
+    `> **Snapshots de Servidor:** **${totalBackups}** salvos | **Membros em Backup OAuth2:** **${oauthMembers}** (${activeTokens} tokens ativos)\n` +
+    `> **Membros Roblox Vinculados:** **${linkedCount}** jogadores sincronizados`
   ));
   c.addSeparatorComponents(spacer(false));
 
-  // Shield Level Selector
   const shieldOptions = [
-    { label: '🟢 Relaxed', value: 'relaxed', description: 'Low friction for casual public servers', default: shield === 'relaxed' },
-    { label: '🟡 Standard', value: 'standard', description: 'Balanced rate limiting and arithmetic captcha', default: shield === 'standard' },
-    { label: '🟠 Fortress', value: 'fortress', description: 'Strict account age checks, aggressive anti-raid', default: shield === 'fortress' },
-    { label: '🔴 Emergency Lockdown', value: 'lockdown', description: 'Halt all non-verified joins immediately', default: shield === 'lockdown' },
+    { label: '🟢 Relaxado', value: 'relaxed', description: 'Baixa fricção para servidores públicos casuais', default: shield === 'relaxed' },
+    { label: '🟡 Padrão Corporativo', value: 'standard', description: 'Rate limit equilibrado e captcha aritmético', default: shield === 'standard' },
+    { label: '🟠 Fortaleza', value: 'fortress', description: 'Anti-raid rigoroso e verificação de idade de conta', default: shield === 'fortress' },
+    { label: '🔴 Lockdown de Emergência', value: 'lockdown', description: 'Bloqueio total de novas entradas imediatas', default: shield === 'lockdown' },
   ];
 
   c.addActionRowComponents(
-    new ActionRowBuilder().addComponents(select.string('panel:security:shield_select', 'Set Anti-Raid Shield Level...', shieldOptions))
+    new ActionRowBuilder().addComponents(select.string('panel:security:shield_select', 'Ajustar Escudo Anti-Raid...', shieldOptions))
   );
 
-  const buttons = [
-    button.primary('panel:security:quarantine_view', '🚨 Quarantine Log'),
-    button.neutral('verify:rules:demo', '🧪 Test Verification'),
-  ];
   c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
-}
-
-function appendBackupsTab(c, { totalBackups = 0, oauthMembers = 0, activeTokens = 0 }) {
-  c.addTextDisplayComponents(text(
-    `## 🔄 Server & Member Backup Engine\n` +
-    `Saved Template Backups: **${totalBackups}**\n` +
-    `OAuth2 Backed-up Members: **${oauthMembers}** (${activeTokens} active tokens)`
-  ));
-  c.addSeparatorComponents(spacer(false));
-
-  c.addTextDisplayComponents(text(
-    `### Disaster Recovery Operations\n` +
-    `Create full server JSON snapshots or view OAuth2 member restore statistics:`
-  ));
-
-  const buttons = [
-    button.primary('panel:backup:create_modal', '📸 Take Server Snapshot'),
-    button.neutral('panel:backup:list', '📋 List Saved Backups'),
-    button.neutral('panel:backup:oauth_stats', '👥 OAuth Member Stats'),
-  ];
-  c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
-}
-
-function appendRobloxTab(c, { linkedCount = 0 }) {
-  c.addTextDisplayComponents(text(
-    `## 🎮 Roblox Commerce & 70/30 Matrix\n` +
-    `Linked Discord-to-Roblox Members: **${linkedCount}**\n` +
-    `Official Fee Formula: Gross = ⌈Net / 0.7⌉ (30% Marketplace Tax)`
-  ));
-  c.addSeparatorComponents(spacer(false));
-
-  c.addTextDisplayComponents(text(
-    `### Interactive 70/30 Steppers\n` +
-    `Quickly test target Robux pricing breakdowns:`
-  ));
-
-  const buttons = [
-    button.primary('panel:roblox:calc:100', '100 R$'),
-    button.primary('panel:roblox:calc:500', '500 R$'),
-    button.primary('panel:roblox:calc:1000', '1,000 R$'),
-    button.neutral('panel:roblox:calc:custom', '🔢 Custom Calculation'),
-    button.neutral('roblox:link', '🔗 Link Account'),
-  ];
-  c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
-}
-
-function appendAnalyticsTab(c, { revenueTrend = [12, 18, 25, 30, 45, 60, 85], totalOrders = 24, conversionRate = 78 }) {
-  const sparkline = renderAsciiSparkline(revenueTrend);
-  const conversionBar = renderAsciiBar(conversionRate, 100, 10);
-
-  c.addTextDisplayComponents(text(
-    `## 📊 Growth, Revenue & Intelligence\n\n` +
-    `> **7-Day Revenue Velocity:** ${sparkline}\n` +
-    `> **Checkout Conversion:** ${conversionBar}\n` +
-    `> **Completed Orders:** **${totalOrders}**\n` +
-    `> **Payment Ingress:** Webhooks Online (Stripe, PIX, Wallet)`
-  ));
-}
-
-function appendPixStoreTab(c, { pixConfig = {}, commerceChannels = {}, vendorsCount = 0 }) {
-  const pixStatus = pixConfig.enabled ? '🟢 **ATIVO & OPERANDO**' : '🔴 **INATIVO**';
-  const pixKey = pixConfig.pix_key ? `\`${pixConfig.pix_key}\`` : '*Não configurada*';
-  const cartCat = commerceChannels.cart_category_id ? `<#${commerceChannels.cart_category_id}>` : '*Direto no Servidor*';
-  const revCh = commerceChannels.reviews_channel_id ? `<#${commerceChannels.reviews_channel_id}>` : '*Desativado*';
-
-  c.addTextDisplayComponents(text(
-    `## 🇧🇷 Operações PIX & Loja Brasil\n` +
-    `Status do Gateway PIX: ${pixStatus}\n` +
-    `Chave PIX Cadastrada: ${pixKey}\n` +
-    `Moeda Padrão: **\`${commerceChannels.currency || 'BRL'}\`** | Idioma: \`${commerceChannels.language || 'pt_BR'}\``
-  ));
-  c.addSeparatorComponents(spacer(false));
-
-  c.addTextDisplayComponents(text(
-    `### Estrutura de Canais & Vendedores\n` +
-    `> **Categoria de Carrinhos:** ${cartCat}\n` +
-    `> **Canal de Avaliações:** ${revCh}\n` +
-    `> **Vendedores / Revendedores Ativos:** **${vendorsCount}** parceiros cadastrados`
-  ));
-
-  const buttons = [
-    button.primary('panel:pix:test_charge', '🪙 Gerar PIX Teste'),
-    button.neutral('ranking:view', '🏆 Ver Ranking de Clientes'),
-    button.neutral('store:view', '🛍️ Ver Loja'),
-  ];
-  c.addSeparatorComponents(spacer(false));
-  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      button.primary('panel:backup:create_modal', '📸 Salvar Snapshot Servidor'),
+      button.neutral('panel:backup:list', '📋 Listar Backups'),
+      button.neutral('panel:security:quarantine_view', '🚨 Log Anti-Nuke'),
+      button.neutral('panel:roblox:calc:custom', '🎮 Calculadora Roblox 70/30')
+    )
+  );
 }

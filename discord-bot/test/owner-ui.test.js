@@ -45,3 +45,25 @@ test('help command is registered and self-describing', () => {
   assert.equal(helpCommand.data.name, 'help');
   assert.match(helpCommand.data.description, /List Azure commands/);
 });
+
+test('operatorDashboardPanel renders all 5 nested categories without throwing', async () => {
+  const { operatorDashboardPanel } = await import('../src/ui/theme.js');
+  const categories = ['commerce', 'economy', 'ai', 'support', 'security'];
+
+  for (const cat of categories) {
+    const p = operatorDashboardPanel({
+      category: cat,
+      guildId: '123456',
+      data: {
+        products: [{ sku: 'test_item', name: 'Test Item', variants: [{ priceMinor: 1000, currency: 'BRL', stock: 5 }] }],
+        coupons: [],
+        pixConfig: { enabled: true, pix_key: 'test@pix.br' },
+        commerceChannels: { currency: 'BRL', language: 'pt_BR' },
+        vendorsCount: 1,
+      },
+      settings: { aiPersona: 'concierge', aiAutonomy: 'operator', antiRaidLevel: 'standard' },
+    });
+
+    assert.ok(p.components.length > 0);
+  }
+});
