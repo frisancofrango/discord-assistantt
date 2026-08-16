@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Planos e Preços - Loop</title>
+  <meta name="description" content="Escolha o plano ideal para automatizar suas vendas e sua comunidade no Discord com a Loop." />
+  <link rel="icon" href="loop.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/combined.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" />
+  <style>
+    :root {
+      --primary: #52e22b;
+      --background: #070707;
+      --foreground: #ffffff;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #070707;
+      color: #ffffff;
+      overflow-x: hidden;
+    }
+    .font-display {
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+    .plan-card:hover {
+      border-color: rgba(82, 226, 43, 0.4);
+      box-shadow: 0 0 30px rgba(82, 226, 43, 0.08);
+      transform: translateY(-4px);
+    }
+    .plan-card {
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .faq-item[open] summary svg {
+      transform: rotate(180deg);
+    }
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body class="antialiased bg-[#070707] text-white min-h-screen flex flex-col">
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- Navigation -->
+  <nav class="fixed top-0 w-full z-[50] bg-[#070707]/90 backdrop-blur-md border-b border-white/10 select-none">
+    <div class="mx-auto max-w-6xl px-6 lg:px-10 h-16 flex items-center justify-between">
+      <a class="flex items-center gap-2" href="index.html">
+        <img src="loop.svg" alt="Loop" class="h-6 w-auto" />
+      </a>
+      <div class="hidden md:flex items-center gap-6 text-[13px] font-medium text-white/70">
+        <a class="hover:text-white transition-colors" href="index.html#recursos">Produto</a>
+        <a class="hover:text-white transition-colors" href="index.html#integracoes">Recursos</a>
+        <a class="text-[#52e22b] font-semibold" href="pricing.html">Planos</a>
+        <a class="hover:text-white transition-colors" href="dashboard.html">Dashboard</a>
+        <a class="hover:text-white transition-colors" target="_blank" href="https://discord.gg/acm8wvevvp">Suporte</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="dashboard.html" class="hidden sm:inline-flex h-9 items-center justify-center rounded-lg border border-white/15 bg-white/5 px-4 text-xs font-semibold text-white hover:bg-white/10 transition-colors">Entrar</a>
+        <a href="pricing.html" class="inline-flex h-9 items-center justify-center rounded-lg border border-[#52e22b]/30 bg-[#52e22b]/15 px-4 text-xs font-bold text-[#52e22b] hover:bg-[#52e22b]/25 transition-colors">Começar grátis</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <main class="flex-1 pt-32 pb-20">
+    <div class="mx-auto max-w-6xl px-6 lg:px-10">
+      <div class="text-center max-w-2xl mx-auto">
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-[#52e22b]/30 bg-[#52e22b]/10 px-3 py-1 text-xs font-semibold text-[#52e22b]">
+          <span class="size-1.5 rounded-full bg-[#52e22b] animate-pulse"></span>
+          Preços transparentes
+        </span>
+        <h1 class="mt-4 font-display text-4xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
+          O plano perfeito para o tamanho da sua operação
+        </h1>
+        <p class="mt-4 text-base text-white/50 leading-relaxed">
+          Sem taxas ocultas, sem fidelidade. Crie sua loja no Discord agora e escale quando estiver faturando alto.
+        </p>
+      </div>
+
+      <!-- Pricing Cards Grid -->
+      <div class="mt-16 grid gap-8 lg:grid-cols-3 items-stretch">
+        <!-- Grátis -->
+        <div class="plan-card rounded-2xl border border-white/10 bg-[#0c0c0c] p-8 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <h3 class="text-xl font-bold text-white">Starter</h3>
+              <span class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-white/60">Grátis</span>
+            </div>
+            <p class="mt-2 text-xs text-white/50">Ideal para quem está iniciando suas vendas no Discord.</p>
+            <div class="mt-6 flex items-baseline gap-1">
+              <span class="text-4xl font-extrabold text-white">R$ 0</span>
+              <span class="text-xs text-white/40">/mês</span>
+            </div>
+            <ul class="mt-8 space-y-3.5 text-xs text-white/70">
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Taxa de apenas 5% por venda</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>1 Servidor Discord conectado</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Produtos e Estoque ilimitados</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>PIX Automático com QR Code</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Entrega automática de cargos & keys</span>
+              </li>
+            </ul>
+          </div>
+          <button onclick="selectPlan('Starter')" class="mt-8 w-full rounded-xl border border-white/15 bg-white/5 py-3 text-xs font-bold text-white hover:bg-white/10 transition-colors">
+            Começar Grátis
+          </button>
+        </div>
+
+        <!-- Pro -->
+        <div class="plan-card relative rounded-2xl border-2 border-[#52e22b] bg-[#0f140d] p-8 flex flex-col justify-between shadow-2xl">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#52e22b] px-3.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#070707]">
+            Mais Popular
+          </div>
+          <div>
+            <div class="flex items-center justify-between">
+              <h3 class="text-xl font-bold text-white">Pro</h3>
+              <span class="rounded-md bg-[#52e22b]/20 px-2.5 py-1 text-[11px] font-bold text-[#52e22b]">Recomendado</span>
+            </div>
+            <p class="mt-2 text-xs text-white/60">Para servidores em crescimento que buscam margem máxima.</p>
+            <div class="mt-6 flex items-baseline gap-1">
+              <span class="text-4xl font-extrabold text-white">R$ 29</span>
+              <span class="text-xs text-white/50">,90/mês</span>
+            </div>
+            <ul class="mt-8 space-y-3.5 text-xs text-white/80">
+              <li class="flex items-center gap-2.5 font-medium">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Taxa reduzida: <strong>2.5% por venda</strong></span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Até 3 Servidores integrados</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Loop Roblox Extension (LRE 70/30)</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Sistema de Cupons & Cashback</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Assistente AI em tempo real</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Suporte Prioritário 24/7</span>
+              </li>
+            </ul>
+          </div>
+          <button onclick="selectPlan('Pro')" class="mt-8 w-full rounded-xl bg-[#52e22b] py-3 text-xs font-bold text-[#070707] hover:bg-[#43c422] transition-colors shadow-lg">
+            Assinar Plano Pro
+          </button>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="plan-card rounded-2xl border border-white/10 bg-[#0c0c0c] p-8 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <h3 class="text-xl font-bold text-white">Enterprise</h3>
+              <span class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-white/60">Corporativo</span>
+            </div>
+            <p class="mt-2 text-xs text-white/50">Para grandes operações, redes de servidores e agências.</p>
+            <div class="mt-6 flex items-baseline gap-1">
+              <span class="text-4xl font-extrabold text-white">R$ 89</span>
+              <span class="text-xs text-white/40">,90/mês</span>
+            </div>
+            <ul class="mt-8 space-y-3.5 text-xs text-white/70">
+              <li class="flex items-center gap-2.5 font-semibold text-white">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span><strong>0% DE TAXA</strong> (Taxa Zero por venda)</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Servidores e Sub-bots Ilimitados</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Domínio Personalizado para Loja Web</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Anti-Nuke & Backup em Nuvem Horário</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>API REST & Webhooks Customizados</span>
+              </li>
+              <li class="flex items-center gap-2.5">
+                <svg class="size-4 text-[#52e22b] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span>Gerente de Conta Dedicado</span>
+              </li>
+            </ul>
+          </div>
+          <button onclick="selectPlan('Enterprise')" class="mt-8 w-full rounded-xl border border-white/15 bg-white/5 py-3 text-xs font-bold text-white hover:bg-white/10 transition-colors">
+            Assinar Enterprise
+          </button>
+        </div>
+      </div>
+
+      <!-- FAQ Accordion -->
+      <div class="mt-28 max-w-3xl mx-auto">
+        <h2 class="font-display text-2xl sm:text-3xl font-bold text-center text-white">Perguntas Frequentes</h2>
+        <div class="mt-8 space-y-4">
+          <details class="faq-item group rounded-xl border border-white/10 bg-[#0d0d0d] p-5 cursor-pointer">
+            <summary class="flex items-center justify-between text-sm font-semibold text-white list-none">
+              <span>Como funciona a taxa por venda?</span>
+              <svg class="size-4 text-white/50 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"></path></svg>
+            </summary>
+            <p class="mt-3 text-xs leading-relaxed text-white/50">A taxa só é cobrada quando você recebe um pagamento confirmado via PIX. No plano Starter ela é 5%, no Pro 2.5% e no Enterprise você tem taxa zero (0%).</p>
+          </details>
+          <details class="faq-item group rounded-xl border border-white/10 bg-[#0d0d0d] p-5 cursor-pointer">
+            <summary class="flex items-center justify-between text-sm font-semibold text-white list-none">
+              <span>A entrega do produto é realmente instantânea?</span>
+              <svg class="size-4 text-white/50 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"></path></svg>
+            </summary>
+            <p class="mt-3 text-xs leading-relaxed text-white/50">Sim! No momento em que o cliente paga o QR Code PIX, o Gateway da Loop valida o recebimento em menos de 2 segundos e entrega o cargo, arquivo ou key no canal privado do cliente.</p>
+          </details>
+          <details class="faq-item group rounded-xl border border-white/10 bg-[#0d0d0d] p-5 cursor-pointer">
+            <summary class="flex items-center justify-between text-sm font-semibold text-white list-none">
+              <span>Posso cancelar a qualquer momento?</span>
+              <svg class="size-4 text-white/50 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"></path></svg>
+            </summary>
+            <p class="mt-3 text-xs leading-relaxed text-white/50">Com certeza. Não exigimos fidelidade e você pode alternar ou cancelar seu plano direto pelo painel de controle.</p>
+          </details>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="w-full bg-[#070707] border-t border-white/10 py-12">
+    <div class="mx-auto max-w-6xl px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-white/50">
+      <div class="flex items-center gap-3">
+        <img src="loop.svg" alt="Loop" class="h-5 w-auto" />
+        <span>© 2026 Loop. Todos os direitos reservados. Feito com 💚</span>
+      </div>
+      <div class="flex items-center gap-6">
+        <a href="index.html" class="hover:text-white transition-colors">Início</a>
+        <a href="pricing.html" class="hover:text-white transition-colors">Planos</a>
+        <a href="dashboard.html" class="hover:text-white transition-colors">Dashboard</a>
+        <a href="mailto:support@loopbot.app" class="hover:text-white transition-colors">support@loopbot.app</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function showToast(title, desc = '') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'flex items-center gap-3 rounded-xl border border-white/10 bg-[#121212] px-4 py-3 shadow-2xl text-xs text-white animate-fade-in';
+      toast.innerHTML = `
+        <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#52e22b]/15 text-[#52e22b]">
+          <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+        </span>
+        <div>
+          <p class="font-semibold text-white">${title}</p>
+          ${desc ? `<p class="text-white/50">${desc}</p>` : ''}
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    function selectPlan(name) {
+      showToast(`Plano ${name} Selecionado!`, 'Redirecionando para autenticação do Discord...');
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 1200);
+    }
+  </script>
+</body>
+</html>

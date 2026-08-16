@@ -1,0 +1,11 @@
+{
+  "name": "loop-website-clone",
+  "version": "1.0.0",
+  "description": "Pixel-perfect clone of Loop (https://www.loopbot.app/)",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}
