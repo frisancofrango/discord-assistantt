@@ -25,3 +25,12 @@ test('semantic memory migration enables pgvector and indexes embeddings', async 
   for (const constraint of ['semantic_memories','content_hash','embedding vector(768)','vector_cosine_ops']) assert.match(sql, new RegExp(constraint.replace(/[()]/g, '\\$&'), 'i'), constraint);
   assert.match(sql, /UNIQUE\(guild_id, user_id, content_hash\)/i);
 });
+test('wallet and roblox migration persists wallets, transactions and roblox links', async () => {
+  const sql = await readFile(new URL('../migrations/009_wallet_and_roblox.sql', import.meta.url), 'utf8');
+  for (const table of ['wallets', 'wallet_transactions', 'roblox_links', 'roblox_gamepasses']) {
+    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, 'i'), table);
+  }
+  assert.match(sql, /balance_minor bigint NOT NULL DEFAULT 0/i);
+  assert.match(sql, /UNIQUE\(guild_id, member_id, currency\)/i);
+  assert.match(sql, /UNIQUE\(guild_id, member_id\)/i);
+});
