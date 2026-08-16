@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import { DEFAULT_OPENCODE_PROFILES } from '../agent/model.js';
 
 const parseBool = (defaultValue) => z.enum(['true', 'false']).default(defaultValue).transform((v) => v === 'true');
 const optionalBool = z.enum(['true', 'false']).transform((v) => v === 'true').optional();
@@ -25,7 +26,7 @@ const schema = z.object({
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
   MODEL_PROFILES_JSON: z.string().default('[]'),
   MODEL_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
-  MODEL_PACING_MS: z.coerce.number().int().min(0).max(120000).default(35000),
+  MODEL_PACING_MS: z.coerce.number().int().min(0).max(120000).default(0),
   MODEL_FAILURE_THRESHOLD: z.coerce.number().int().min(1).max(20).default(3),
   MODEL_CIRCUIT_RESET_MS: z.coerce.number().int().min(1000).max(3600000).default(60000),
   AGENT_BUDGET_USD: z.coerce.number().min(0).default(5),
@@ -90,7 +91,7 @@ export function loadConfig(env = process.env) {
     redis: Object.freeze({ url: raw.REDIS_URL, prefix: raw.QUEUE_PREFIX }),
     http: Object.freeze({ host: raw.HTTP_HOST, port: raw.HTTP_PORT }),
     queue: Object.freeze({ concurrency: raw.QUEUE_CONCURRENCY }),
-    models: Object.freeze({ profiles: modelProfiles, maxRetries: raw.MODEL_MAX_RETRIES, failureThreshold: raw.MODEL_FAILURE_THRESHOLD, circuitResetMs: raw.MODEL_CIRCUIT_RESET_MS, pacingMs: raw.MODEL_PACING_MS, budgetUsd: raw.AGENT_BUDGET_USD, raceCount: raw.RACE_PROFILES }),
+    models: Object.freeze({ profiles: modelProfiles.length ? modelProfiles : DEFAULT_OPENCODE_PROFILES, maxRetries: raw.MODEL_MAX_RETRIES, failureThreshold: raw.MODEL_FAILURE_THRESHOLD, circuitResetMs: raw.MODEL_CIRCUIT_RESET_MS, pacingMs: raw.MODEL_PACING_MS, budgetUsd: raw.AGENT_BUDGET_USD, raceCount: raw.RACE_PROFILES }),
     research: Object.freeze({ maxBytes: raw.RESEARCH_MAX_BYTES, timeoutMs: raw.RESEARCH_TIMEOUT_MS, allowedTypes: raw.RESEARCH_ALLOWED_TYPES.split(',').map((v) => v.trim()), allowedHosts: raw.RESEARCH_ALLOWED_HOSTS.split(',').map((v) => v.trim()).filter(Boolean) }),
     code: Object.freeze({ workspaceRoot: raw.CODE_WORKSPACE_ROOT, validationCommands, commandTimeoutMs: raw.CODE_COMMAND_TIMEOUT_MS }),
     embeddings: Object.freeze({ baseUrl: raw.EMBED_BASE_URL, apiKey: raw.EMBED_API_KEY ?? null, model: raw.EMBED_MODEL, dimensions: raw.EMBED_DIMENSIONS, enabled: Boolean(raw.EMBED_BASE_URL) }),

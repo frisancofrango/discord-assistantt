@@ -54,7 +54,7 @@ Otherwise reply normally (never include that marker). Bare follow-ups like "?" o
   async function converse({message, context, decision, mode='engaged', onDelta}) {
     const prompt = basePrompt.replace('{reason}', decision.reason) + (mode === 'decide' ? decideGate : '');
     try {
-      const request = { capability:'conversation', timeoutMs:35_000, maxTokens:400, contextTokens:context.estimatedTokens??Math.ceil(JSON.stringify(context).length/4), messages:null, temperature:0.2 };
+      const request = { capability:'conversation', timeoutMs:15_000, maxTokens:400, contextTokens:context.estimatedTokens??Math.ceil(JSON.stringify(context).length/4), messages:null, temperature:0.2 };
       const build = (messages) => router.complete({ ...request, messages });
       const buildStream = (messages) => onDelta ? router.completeStream({ ...request, messages }, onDelta) : null;
       const userMessage = { id:message.id, authorId:message.author.id, authorName:context.authorName??context.userAlias??null, content:message.content, editedAt:message.editedAt };
