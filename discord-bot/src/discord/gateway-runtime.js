@@ -44,6 +44,11 @@ const deletedSassLines = [
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const instantRules = [
   { re: /^(hello|hi|hey|yo|sup|wassup|hola|heya|ello|good morning|good night)\b[!. ]*$/i, react: null, reply: (n) => `hey ${n} 👋` },
+  { re: /^(oi|ola|olá|opa|eai|e aí|fala|salve|bom dia|boa tarde|boa noite)\b[!. ]*$/i, react: null, reply: (n) => `opa ${n} 👋` },
+  { re: /^(tudo bem|como vai|beleza|suave|tranquilo|td bem)\??[!. ]*$/i, react: null, reply: () => pick([`tudo suave por aqui, e com você? 😎`, `tranquilo demais. precisando de algo?`, `tudo certo, na atividade!`, `tranquilão, só na paz. e aí?`]) },
+  { re: /^(valeu|vlw|obrigado|obg|agradece|tmj|tamo junto)\b[!. ]*$/i, react: '💚' },
+  { re: /^(quanto custa|qual o valor|preco|preço|catalogo|catálogo|loja)\b[!. ]*$/i, react: null, reply: () => `dá uma olhada no catálogo oficial usando \`/sales loja\` ou \`/product listar\` 🛍️` },
+  { re: /^(como comprar|como pagar|pix|forma de pagamento)\b[!. ]*$/i, react: null, reply: () => `você pode abrir um carrinho direto com \`/cart\` ou pagar via PIX instantâneo 🇧🇷` },
   { re: /^(?:how(?:'?s| is| are| r)(?: u| you| ya| it)(?: doin| doing| going)?|how (?:u|you|ya|it)(?: doin| doing| going)?|hows (?:it|life)(?: going)?)\b[!. ]*$/i, react: null, reply: () => pick([`doin good, just vibing. you? 😎`, `hangin in there, you?`, `chillin, what's up?`, `busy bein awesome. how bout you?`]) },
   { re: /^(?:that'?s|that) (?:good|great|awesome|sweet|perfect|nice|cool|dope|fire|lit)\b[!. ]*$/i, react: null, reply: () => pick([`glad to hear it 😎`, `nice, good stuff`, `told you it would be`, `as expected of you`]) },
   { re: /^(?:nice|cool|sweet|awesome|dope|fire|lit|bet|fr|facts|valid)\b[!. ]*$/i, react: '😎' },
@@ -255,7 +260,7 @@ engagement.recordResponse(scopeKey, lastId);
     };
     const scheduleEdit = () => {
       if (editTimer || !posted) return;
-      editTimer = setTimeout(() => { editTimer = null; editVisible(); }, 3000);
+      editTimer = setTimeout(() => { editTimer = null; editVisible(); }, 900);
       editTimer.unref?.();
     };
     const postFirst = async () => {
