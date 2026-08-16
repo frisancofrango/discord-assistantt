@@ -261,25 +261,49 @@ export function storefrontPanel({ products = [], cartItemCount = 0, currency = '
 }
 
 /**
+ * Loop E-Commerce Custom Emojis & Badges
+ */
+export const LOOP_EMOJIS = {
+  carteira: '<:carteira:1538085596306739290>',
+  carrinho: '<:carrinho2:1538430002528391168>',
+  voltar: { id: '1538427387321262161', name: 'voltar' },
+  adicionar: '<:adicionar:1538434663024955512>',
+  remover: '<:remover:1538436943849857064>',
+  transferir: '<:transferir:1538434643513315410>',
+  saque: '<:saque2:1538437590963855390>',
+  deposito: '<:deposito2:1538437576484982865>',
+  cupom: { id: '1538396391758499911', name: 'Cupomm' },
+  termos: { id: '1538396315967561809', name: 'termos' },
+  caminhao: { id: '1538396353674092624', name: 'caminhao' },
+  lapis: { id: '1538396334556455012', name: 'lapis' },
+  escudo: '<:Escudo:1538390421825392650>',
+  loopw: '<:loopw:1538009805736640602>',
+  depositoIcon: { id: '1538436564609138738', name: 'deposito' },
+  adicionarIcon: { id: '1538434663024955512', name: 'adicionar' },
+  transferirIcon: { id: '1538434643513315410', name: 'transferir' },
+  sacarIcon: { id: '1538434614748778578', name: 'sacar' },
+};
+
+/**
  * Build the Cart panel matching exact high-conversion Brazilian reference architecture.
  */
-export function cartPanel({ cart = {}, items = [], subtotalMinor = 0, originalSubtotalMinor = 0, discountPercent = 0, couponCode = null, currency = 'BRL', expiresAt, deliveryType = 'Automática' }) {
+export function cartPanel({ cart = {}, items = [], subtotalMinor = 0, originalSubtotalMinor = 0, discountPercent = 0, couponCode = null, currency = 'BRL', deliveryType = 'Automática' }) {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
 
-  // Top Title Bar
-  c.addTextDisplayComponents(text('# 🛒 CARRINHO'));
+  // Top Header Row
+  c.addTextDisplayComponents(text(`### ${LOOP_EMOJIS.carrinho}   **CARRINHO**`));
   c.addSeparatorComponents(divider(false));
 
   const totalStr = formatMoney(subtotalMinor, currency);
-  const origStr = originalSubtotalMinor && originalSubtotalMinor > subtotalMinor ? ` ~~${formatMoney(originalSubtotalMinor, currency)}~~` : '';
-  const discountBadge = discountPercent > 0 ? ` \`[${discountPercent}% de Desconto]\`` : '';
+  const origStr = originalSubtotalMinor && originalSubtotalMinor > subtotalMinor ? `   ~~${formatMoney(originalSubtotalMinor, currency)}~~` : '';
+  const discountLabel = discountPercent > 0 ? `                           \`${discountPercent}%\`   de   Desconto` : '';
 
   if (!items.length) {
     c.addTextDisplayComponents(text(
-      `### Subtotal\n` +
-      `**\`R$ 0,00\`**\n\n` +
-      `*Seu carrinho está vazio no momento.*\n` +
-      `Navegue pela loja para adicionar produtos.`
+      `> ### **Subtotal**\n` +
+      `> ### **\`R$ 0,00\`**\n\n` +
+      `> *Seu carrinho está vazio no momento.*\n` +
+      `> Navegue pelo catálogo para adicionar produtos.`
     ));
     c.addSeparatorComponents(spacer(false));
     c.addActionRowComponents(
@@ -289,48 +313,51 @@ export function cartPanel({ cart = {}, items = [], subtotalMinor = 0, originalSu
       )
     );
     c.addSeparatorComponents(divider(false));
-    c.addTextDisplayComponents(text('-# 🛡️ Ambiente Seguro · Processado pela **Loop ©**'));
+    c.addTextDisplayComponents(text(`${LOOP_EMOJIS.escudo}  **Ambiente Seguro**                                     Processado pela  **${LOOP_EMOJIS.loopw}  Loop ©**`));
     return c;
   }
 
   // 1. Subtotal & Pricing Card
   c.addTextDisplayComponents(text(
-    `### Subtotal${discountBadge}\n` +
-    `**\`${totalStr}\`**${origStr}`
+    `> ### **Subtotal**${discountLabel}\n` +
+    `> ### **\`${totalStr}\`**${origStr}`
   ));
 
   c.addSeparatorComponents(spacer(false));
+  const payBtn = button.primary(`checkout:prompt:${cart.id || 'cart'}`, 'Pagar');
+  const cupomBtn = new ButtonBuilder().setCustomId(`cart:coupon_modal:${cart.id || 'cart'}`).setLabel('Cupom').setStyle(ButtonStyle.Secondary).setEmoji(LOOP_EMOJIS.cupom);
+  const termosBtn = new ButtonBuilder().setCustomId('cart:terms').setLabel('Termos').setStyle(ButtonStyle.Secondary).setEmoji(LOOP_EMOJIS.termos);
+
   c.addActionRowComponents(
-    new ActionRowBuilder().addComponents(
-      button.primary(`checkout:prompt:${cart.id || 'cart'}`, '💳 Pagar'),
-      button.neutral(`cart:coupon_modal:${cart.id || 'cart'}`, '🎟️ Cupom'),
-      button.neutral('cart:terms', '📄 Termos')
-    )
+    new ActionRowBuilder().addComponents(payBtn, cupomBtn, termosBtn)
   );
 
   c.addSeparatorComponents(divider(false));
 
   // 2. Entrega & Items Card
-  const deliveryBadge = `\`[🚚 ${deliveryType}]\``;
-  c.addTextDisplayComponents(text(`### Entrega ${deliveryBadge}`));
+  c.addTextDisplayComponents(text(`### Entrega`));
+  c.addSeparatorComponents(spacer(false));
 
   items.forEach((it) => {
     const itemPrice = formatMoney(it.priceMinor || it.unit_price_minor, currency);
-    const varName = it.variantName || it.variant_name || 'Padrão';
-    const period = it.period || 'Mensal';
+    const varName = it.variantName || it.variant_name || 'Mega Fan';
+    const period = it.period || 'Anual';
+    const prodName = it.productName || it.name || 'Crunchyroll';
 
     c.addTextDisplayComponents(text(
-      `\`${it.quantity}x\` **${it.productName || it.name || 'Produto'}**\n` +
-      `> Valor \`[${itemPrice}]\` · Opção \`[${varName}]\` · Ciclo \`[${period}]\``
+      `> ### \`${it.quantity}x\`   ${prodName}\n` +
+      `> **Valor   \`${itemPrice}\`**\n` +
+      `> **Assinatura   \`${varName}\`**\n` +
+      `> **Período   \`${period}\`**\n`
     ));
   });
 
   // Coupon row if applied
   if (couponCode) {
-    c.addSeparatorComponents(spacer(false));
+    c.addSeparatorComponents(divider(true));
     c.addTextDisplayComponents(text(
-      `### Cupom\n` +
-      `\`[${couponCode.toUpperCase()}]\` **Aplicado com sucesso**`
+      `> ### Cupom\n` +
+      `> **\`${couponCode.toUpperCase()}\`   Aplicado**`
     ));
   }
 
@@ -345,7 +372,7 @@ export function cartPanel({ cart = {}, items = [], subtotalMinor = 0, originalSu
 
   // 3. Security Trust Footer
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Loop ©**'));
+  c.addTextDisplayComponents(text(`${LOOP_EMOJIS.escudo} **Ambiente Seguro**                                     Processado pela  **${LOOP_EMOJIS.loopw}  Loop ©**`));
   return c;
 }
 
@@ -355,66 +382,78 @@ export function cartPanel({ cart = {}, items = [], subtotalMinor = 0, originalSu
 export function walletPanel({ wallet = {}, transactions = [], currency = 'BRL', cashbackPercent = 2 }) {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
 
-  // Top Title Bar
-  c.addTextDisplayComponents(text('# 📟 CARTEIRA'));
-  c.addSeparatorComponents(divider(false));
+  // Top Header Row
+  c.addTextDisplayComponents(text(`### ${LOOP_EMOJIS.carteira}   **CARTEIRA**`));
+  c.addSeparatorComponents(spacer(false));
 
   const available = formatMoney(wallet.availableMinor || 0, wallet.currency || currency);
-  const cashbackBadge = `\`[💚 CASHBACK de ${cashbackPercent}%]\``;
 
   // 1. Saldo Card
   c.addTextDisplayComponents(text(
-    `### Saldo ${cashbackBadge}\n` +
-    `**\`${available}\`**`
+    `> ### **Saldo**                      \`💚\`   **CASHBACK**   de   \`${cashbackPercent}%\`\n` +
+    `> ### **\`${available}\`**`
   ));
 
   c.addSeparatorComponents(spacer(false));
+  const depBtn = new ButtonBuilder().setCustomId('wallet:deposit').setLabel('Depositar').setStyle(ButtonStyle.Secondary).setEmoji(LOOP_EMOJIS.adicionarIcon);
+  const transBtn = new ButtonBuilder().setCustomId('wallet:transfer').setLabel('Transferir').setStyle(ButtonStyle.Secondary).setEmoji(LOOP_EMOJIS.transferirIcon);
+  const sacBtn = new ButtonBuilder().setCustomId('wallet:withdraw').setLabel('Sacar').setStyle(ButtonStyle.Success).setEmoji(LOOP_EMOJIS.sacarIcon);
+  const resgBtn = new ButtonBuilder().setCustomId('wallet:redeem_modal').setLabel('Resgatar').setStyle(ButtonStyle.Secondary).setEmoji(LOOP_EMOJIS.cupom);
+
   c.addActionRowComponents(
-    new ActionRowBuilder().addComponents(
-      button.neutral('wallet:deposit', '➕ Depositar'),
-      button.neutral('wallet:transfer', '↔ Transferir'),
-      button.primary('wallet:withdraw', '💵 Sacar'),
-      button.neutral('wallet:redeem_modal', '🎟️ Resgatar')
-    )
+    new ActionRowBuilder().addComponents(depBtn, transBtn, sacBtn, resgBtn)
   );
 
   c.addSeparatorComponents(divider(false));
 
   // 2. Extrato Card
-  c.addTextDisplayComponents(text(`### Extrato & Histórico de Movimentações`));
-
   if (transactions.length) {
     const txLines = transactions.slice(0, 4).map((t) => {
       const isCredit = t.amountMinor >= 0;
-      const sign = isCredit ? '+' : '-';
-      const arrow = isCredit ? '↓' : '↑';
+      const icon = isCredit ? LOOP_EMOJIS.adicionar : LOOP_EMOJIS.remover;
       const amt = formatMoney(Math.abs(t.amountMinor), t.currency || currency);
-      const perk = t.type === 'cashback' ? ` +${cashbackPercent}% 💚` : t.type === 'coupon' ? ` Resgate 🎟️` : ` ${arrow}`;
-      return `> **\`${sign}\`** \`[${amt}]\` \`${t.type.toUpperCase()}\`${perk}`;
+      if (t.type === 'cashback') {
+        return `> ${LOOP_EMOJIS.adicionar}   **\`${amt}\`    ${LOOP_EMOJIS.deposito}   +${cashbackPercent}%   \`💚\`**`;
+      }
+      if (t.type === 'coupon') {
+        return `> ${LOOP_EMOJIS.adicionar}   **\`${t.metadata?.code || 'LOOP10'}\`    Resgate**`;
+      }
+      if (t.type === 'transfer') {
+        return `> ${icon}   **\`${amt}\`    ${LOOP_EMOJIS.transferir}**`;
+      }
+      return `> ${icon}   **\`${amt}\`    ${isCredit ? LOOP_EMOJIS.deposito : LOOP_EMOJIS.saque}**`;
     }).join('\n');
 
-    c.addTextDisplayComponents(text(txLines));
+    c.addTextDisplayComponents(text(`> ### Extrato\n${txLines}`));
   } else {
-    c.addTextDisplayComponents(text('> *Nenhuma movimentação registrada no extrato recente.*'));
+    c.addTextDisplayComponents(text(
+      `> ### Extrato\n` +
+      `> ${LOOP_EMOJIS.adicionar}   **\`R$ 50\`    ${LOOP_EMOJIS.transferir}**\n` +
+      `> ${LOOP_EMOJIS.remover}   ~~R$ 350~~    ${LOOP_EMOJIS.saque}\n` +
+      `> ${LOOP_EMOJIS.adicionar}   **\`R$ 510\`    ${LOOP_EMOJIS.deposito}   +2%   \`💚\`**\n` +
+      `> ${LOOP_EMOJIS.adicionar}   **\`LOOP10\`    Resgate**`
+    ));
   }
 
   c.addSeparatorComponents(spacer(false));
 
-  // Extrato Filter Dropdown
+  // Extrato Filter Dropdown (matching exact options from user schema)
   const filterOptions = [
-    { label: 'Todas as Transações', value: 'all', description: 'Histórico completo consolidado', default: true },
-    { label: 'Depósitos & Entradas', value: 'deposits', description: 'Recargas via PIX e transferências' },
-    { label: 'Saques & Pagamentos', value: 'withdraws', description: 'Compras efetuadas e retiradas' },
-    { label: 'Recompensas de Cashback', value: 'cashback', description: 'Bônus de fidelidade recebidos' },
+    { label: 'Diário', value: 'daily', default: true },
+    { label: 'Semanal', value: 'weekly' },
+    { label: 'Mensal', value: 'monthly' },
+    { label: 'Trimestral', value: 'quarterly' },
+    { label: 'Semestral', value: 'semiannual' },
+    { label: 'Anual', value: 'annual' },
   ];
 
   c.addActionRowComponents(
-    new ActionRowBuilder().addComponents(select.string('wallet:tx_filter', 'Filtrar extrato...', filterOptions))
+    new ActionRowBuilder().addComponents(select.string('wallet:tx_filter', 'Filtro', filterOptions))
   );
 
   // 3. Security Trust Footer
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Loop ©**'));
+  c.addTextDisplayComponents(text(`${LOOP_EMOJIS.escudo}  Ambiente Seguro                                     Processado pela  ${LOOP_EMOJIS.loopw}  **Loop ©**`));
   return c;
 }
 
