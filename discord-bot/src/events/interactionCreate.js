@@ -102,6 +102,10 @@ async function handleStringSelect(interaction, client) {
       data.activeTokens = stats.activeTokensCount;
     } else if (tab === 'roblox') {
       data.linkedCount = (await client.runtime.db.query(`SELECT count(*)::int FROM roblox_links WHERE guild_id = $1`, [interaction.guildId])).rows[0]?.count || 0;
+    } else if (tab === 'pix_store') {
+      data.pixConfig = await native.pix.getPixConfig(interaction.guildId);
+      data.commerceChannels = await native.cartChannel.getCommerceChannels(interaction.guildId);
+      data.vendorsCount = (await client.runtime.db.query(`SELECT count(DISTINCT vendor_user_id)::int as count FROM product_vendors`, [])).rows[0]?.count || 0;
     }
 
     return interaction.update({
@@ -489,6 +493,27 @@ async function handleButton(interaction, client) {
       );
     }
 
+    if (arg1 === 'pix' && arg2 === 'test_charge') {
+      const simulatedPixKey = `00020126580014br.gov.bcb.pix0136azure-pix-test-${Date.now().toString().slice(-6)}52040000530398654041.005802BR5913AzureCommerce6009SaoPaulo62070503***6304`;
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          panel({
+            title: '🪙 PIX DE TESTE GERADO (R$ 1,00)',
+            subtitle: 'Simulador de Cobrança Instantânea',
+            body:
+              `Código **PIX Copia e Cola** de homologação:\n\n` +
+              `\`\`\`\n${simulatedPixKey}\n\`\`\`\n` +
+              `> **Valor:** **\`R$ 1,00\`**\n` +
+              `> **Formato:** BCB EMVCo TLV Standard\n` +
+              `> **Validade:** 15 minutos`,
+            footer: 'Padrão Banco Central do Brasil · Integração Pronta',
+          }),
+        ],
+      });
+    }
+
     if (arg1 === 'marketing' && arg2 === 'create_drop') {
       const title = new TextInputBuilder().setCustomId('title').setLabel('Drop Title (e.g. Flash Deal)').setStyle(TextInputStyle.Short).setRequired(true);
       const variant = new TextInputBuilder().setCustomId('variant_id').setLabel('Product Variant ID').setStyle(TextInputStyle.Short).setRequired(true);
@@ -509,6 +534,82 @@ async function handleButton(interaction, client) {
           )
       );
     }
+  }
+
+  // Ranking view button
+  if (action === 'ranking' && arg1 === 'view') {
+    const rankingCmd = (await import('../commands/ranking.js')).default;
+    return rankingCmd.execute(interaction, client);
+  }
+
+  // Marketing views
+  if (action === 'marketing') {
+    if (arg1 === 'drops_list') {
+      const drops = await native.marketing.listFlashDrops(interaction.guildId);
+      const lines = drops.map((d) => {
+        const timeStr = `<t:${Math.floor(new Date(d.expiresAt).getTime() / 1000)}:R>`;
+        return `> ⚡ **${d.title}** — **${formatMoney(d.dropPriceMinor, 'USD')}** (Expira: ${timeStr})`;
+      }).join('\n') || 'Nenhum flash drop ativo no momento.';
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [panel({ title: 'FLASH DROPS ATIVOS', body: lines })],
+      });
+    }
+
+    if (arg1 === 'reviews') {
+      const reviews = await native.marketing.listReviews(interaction.guildId, 10);
+      const lines = reviews.map((r) => {
+        const stars = '⭐'.repeat(r.rating);
+        return `> ${stars} por <@${r.userId}>: *"${r.feedbackText || 'Sem comentário'}"*`;
+      }).join('\n') || 'Nenhuma avaliação registrada ainda.';
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [panel({ title: 'AVALIAÇÕES DE CLIENTES', body: lines })],
+      });
+    }
+  }
+
+  // Loyalty status button
+  if (action === 'loyalty' && arg1 === 'status') {
+    const memberLoyalty = await native.loyalty.getMemberLoyalty(interaction.guildId, interaction.user.id);
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [
+        panel({
+          title: `MEU NÍVEL VIP: ${memberLoyalty.tier.name.toUpperCase()}`,
+          subtitle: `Cashback Atual: ${memberLoyalty.tier.cashbackPercent}%`,
+          body:
+            `> **Gasto Vitalício:** **${formatMoney(memberLoyalty.lifetimeSpentMinor, 'USD')}**\n` +
+            `> **Cashback Acumulado:** **${formatMoney(memberLoyalty.totalCashbackEarnedMinor, 'USD')}**\n` +
+            `> **Taxa de Recompensa:** Receba ${memberLoyalty.tier.cashbackPercent}% de volta em saldo em todas as compras!`,
+        }),
+      ],
+    });
+  }
+
+  // Operating Hours member view
+  if (action === 'channel' && arg1 === 'hours') {
+    const hours = await native.schedule.getOperatingHours(interaction.guildId);
+    const statusStr = hours.isOpen ? '🟢 **ONLINE & ATENDENDO**' : '🔴 **FECHADO / FORA DO HORÁRIO**';
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [
+        panel({
+          title: 'HORÁRIO DE ATENDIMENTO',
+          subtitle: statusStr,
+          body:
+            `> **Horário de Funcionamento:** **${hours.startTime || '09:00'} às ${hours.endTime || '22:00'} ${hours.timezone || 'UTC'}**\n` +
+            `> **Dias de Atendimento:** **${(hours.days || ['Segunda a Domingo']).join(', ').toUpperCase()}**\n\n` +
+            `*${hours.outOfOfficeMessage || 'A equipe responderá assim que o expediente iniciar.'}*`,
+        }),
+      ],
+    });
   }
 
   // Storefront navigation

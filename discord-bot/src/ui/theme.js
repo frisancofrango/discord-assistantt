@@ -524,6 +524,7 @@ export function operatorDashboardPanel({ tab = 'commerce', guildId, data = {}, s
     { label: '🛡️ Security Fortress', value: 'security', description: 'Anti-nuke rate limiters, whitelist & emergency lockdown', default: tab === 'security' },
     { label: '🔄 Server & Member Backups', value: 'backups', description: 'Server snapshots, 1-click restore & OAuth2 member migration', default: tab === 'backups' },
     { label: '🎮 Roblox Matrix', value: 'roblox', description: '70/30 fee calculator, gamepass sync & user lookup', default: tab === 'roblox' },
+    { label: '🇧🇷 Brazilian PIX & Loja', value: 'pix_store', description: 'PIX credentials, cart channels & multi-seller config', default: tab === 'pix_store' },
   ];
 
   c.addActionRowComponents(
@@ -552,6 +553,8 @@ export function operatorDashboardPanel({ tab = 'commerce', guildId, data = {}, s
     appendBackupsTab(c, data);
   } else if (tab === 'roblox') {
     appendRobloxTab(c, data);
+  } else if (tab === 'pix_store') {
+    appendPixStoreTab(c, data);
   } else if (tab === 'analytics') {
     appendAnalyticsTab(c, data);
   }
@@ -827,4 +830,34 @@ function appendAnalyticsTab(c, { revenueTrend = [12, 18, 25, 30, 45, 60, 85], to
     `> **Completed Orders:** **${totalOrders}**\n` +
     `> **Payment Ingress:** Webhooks Online (Stripe, PIX, Wallet)`
   ));
+}
+
+function appendPixStoreTab(c, { pixConfig = {}, commerceChannels = {}, vendorsCount = 0 }) {
+  const pixStatus = pixConfig.enabled ? '🟢 **ATIVO & OPERANDO**' : '🔴 **INATIVO**';
+  const pixKey = pixConfig.pix_key ? `\`${pixConfig.pix_key}\`` : '*Não configurada*';
+  const cartCat = commerceChannels.cart_category_id ? `<#${commerceChannels.cart_category_id}>` : '*Direto no Servidor*';
+  const revCh = commerceChannels.reviews_channel_id ? `<#${commerceChannels.reviews_channel_id}>` : '*Desativado*';
+
+  c.addTextDisplayComponents(text(
+    `## 🇧🇷 Operações PIX & Loja Brasil\n` +
+    `Status do Gateway PIX: ${pixStatus}\n` +
+    `Chave PIX Cadastrada: ${pixKey}\n` +
+    `Moeda Padrão: **\`${commerceChannels.currency || 'BRL'}\`** | Idioma: \`${commerceChannels.language || 'pt_BR'}\``
+  ));
+  c.addSeparatorComponents(spacer(false));
+
+  c.addTextDisplayComponents(text(
+    `### Estrutura de Canais & Vendedores\n` +
+    `> **Categoria de Carrinhos:** ${cartCat}\n` +
+    `> **Canal de Avaliações:** ${revCh}\n` +
+    `> **Vendedores / Revendedores Ativos:** **${vendorsCount}** parceiros cadastrados`
+  ));
+
+  const buttons = [
+    button.primary('panel:pix:test_charge', '🪙 Gerar PIX Teste'),
+    button.neutral('ranking:view', '🏆 Ver Ranking de Clientes'),
+    button.neutral('store:view', '🛍️ Ver Loja'),
+  ];
+  c.addSeparatorComponents(spacer(false));
+  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
 }
