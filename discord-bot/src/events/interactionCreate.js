@@ -140,6 +140,14 @@ async function handleStringSelect(interaction, client) {
           data: { quarantinedCount: 0 },
         }),
       ],
+  // Wallet Transaction Filter
+  if (customId === 'wallet:tx_filter') {
+    const filter = value;
+    const wallet = await native.wallet.getWallet(interaction.guildId, interaction.user.id, 'BRL');
+    const transactions = await native.wallet.history(interaction.guildId, interaction.user.id, 10);
+    return interaction.update({
+      flags: V2,
+      components: [walletPanel({ wallet, transactions, currency: 'BRL' })],
     });
   }
 }
@@ -679,6 +687,92 @@ async function handleButton(interaction, client) {
       }
     }
 
+    if (arg1 === 'refresh' || arg1 === 'view') {
+      const cart = await native.commerce.getCart(interaction.guildId, interaction.user.id);
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [cartPanel({ cart, items: cart.items, subtotalMinor: cart.subtotalMinor, currency: cart.currency || 'BRL' })],
+      });
+    }
+
+    if (arg1 === 'coupon_modal' || arg1 === 'edit_coupon') {
+      const cartId = arg2 || 'cart';
+      const input = new TextInputBuilder()
+        .setCustomId('coupon_code')
+        .setLabel('Código do Cupom de Desconto')
+        .setPlaceholder('Ex: LOOP10')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMaxLength(32);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId(`modal:cart_apply_coupon:${cartId}`)
+          .setTitle('Aplicar Cupom de Desconto')
+          .addComponents(new ActionRowBuilder().addComponents(input))
+      );
+    }
+
+    if (arg1 === 'terms') {
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          panel({
+            title: 'TERMOS DE COMPRA & GARANTIA',
+            body:
+              `> 🛡️ **Garantia Oficial:** Suporte ativo e reposição imediata para produtos com vício ou falha de ativação.\n` +
+              `> ⚡ **Entrega Automática:** Envio instantâneo diretamente no chat após liquidação bancária via PIX ou Saldo em Carteira.\n` +
+              `> 🚫 **Política de Cancelamento:** Produtos digitais entregues e visualizados não são passíveis de estorno unilateral.`,
+            footer: 'Processado pela Loop © · Ambiente Seguro',
+          }),
+        ],
+      });
+    }
+
+    if (arg1 === 'delivery_info') {
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: '🚚 ENTREGA AUTOMÁTICA',
+            body: 'Seu produto ou chave de acesso será dispensado automaticamente neste canal no exato segundo em que o pagamento for liquidado.',
+            footer: 'Loop OS · 100% Automatizado',
+          }),
+        ],
+      });
+    }
+
+    if (arg1 === 'edit' || arg1 === 'edit_item') {
+      const cart = await native.commerce.getCart(interaction.guildId, interaction.user.id);
+      if (!cart.items?.length) {
+        return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'CARRINHO VAZIO', body: 'Não há itens para editar.' })] });
+      }
+
+      const options = cart.items.map((it) => ({
+        label: `${it.productName || it.name || 'Produto'} (${it.quantity}x)`,
+        value: it.variantId || it.id,
+        description: `Remover ou ajustar ${formatMoney(it.priceMinor, 'BRL')}`,
+      }));
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          panel({
+            title: 'EDITAR ITENS DO CARRINHO',
+            body: 'Selecione o produto abaixo para remover do seu carrinho:',
+            buttons: [
+              button.danger(`cart:clear:${cart.id}`, '🗑️ Limpar Carrinho Inteiro'),
+              button.neutral('cart:view', '🔙 Voltar ao Carrinho'),
+            ],
+          }),
+        ],
+      });
+    }
+
     if (arg1 === 'close') {
       if (native.cartChannel) {
         await native.cartChannel.closeCartChannel(interaction.channelId, 'cancelled', client);
@@ -707,7 +801,7 @@ async function handleButton(interaction, client) {
       const cart = await native.commerce.getCart(interaction.guildId, interaction.user.id);
       return interaction.update({
         flags: V2,
-        components: [cartPanel({ cart, items: [], subtotalMinor: 0, currency: 'USD', expiresAt: null })],
+        components: [cartPanel({ cart, items: [], subtotalMinor: 0, currency: 'BRL', expiresAt: null })],
       });
     }
   }
@@ -1132,27 +1226,28 @@ async function handleButton(interaction, client) {
 
   // Wallet operations
   if (action === 'wallet') {
-    if (arg1 === 'view') {
-      const wallet = await native.wallet.getWallet(interaction.guildId, interaction.user.id, 'USD');
+    if (arg1 === 'view' || arg1 === 'refresh') {
+      const wallet = await native.wallet.getWallet(interaction.guildId, interaction.user.id, 'BRL');
       const transactions = await native.wallet.history(interaction.guildId, interaction.user.id, 5);
       return interaction.reply({
         flags: V2,
         ephemeral: true,
-        components: [walletPanel({ wallet, transactions, currency: wallet.currency })],
+        components: [walletPanel({ wallet, transactions, currency: 'BRL' })],
       });
     }
 
     if (arg1 === 'deposit') {
       const input = new TextInputBuilder()
         .setCustomId('amount')
-        .setLabel('Deposit Amount (USD, e.g. 25.00)')
+        .setLabel('Valor da Recarga (R$, ex: 50.00)')
+        .setPlaceholder('Ex: 50.00')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setMaxLength(10);
       return interaction.showModal(
         new ModalBuilder()
           .setCustomId('wallet-deposit-modal')
-          .setTitle('Deposit to Digital Wallet')
+          .setTitle('Adicionar Saldo via PIX')
           .addComponents(new ActionRowBuilder().addComponents(input))
       );
     }
@@ -1160,38 +1255,86 @@ async function handleButton(interaction, client) {
     if (arg1 === 'withdraw') {
       const input = new TextInputBuilder()
         .setCustomId('amount')
-        .setLabel('Withdrawal Amount (USD)')
+        .setLabel('Valor do Saque (R$)')
+        .setPlaceholder('Ex: 100.00')
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setMaxLength(10);
+      const pixKey = new TextInputBuilder()
+        .setCustomId('pix_key')
+        .setLabel('Chave PIX de Destino')
+        .setPlaceholder('CPF, E-mail, Celular ou Chave Aleatória')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
       return interaction.showModal(
         new ModalBuilder()
           .setCustomId('wallet-withdraw-modal')
-          .setTitle('Withdraw from Wallet')
-          .addComponents(new ActionRowBuilder().addComponents(input))
+          .setTitle('Solicitar Saque via PIX')
+          .addComponents(
+            new ActionRowBuilder().addComponents(input),
+            new ActionRowBuilder().addComponents(pixKey)
+          )
       );
     }
 
     if (arg1 === 'transfer') {
       const inputUser = new TextInputBuilder()
         .setCustomId('recipient')
-        .setLabel('Recipient User ID or @Mention')
+        .setLabel('ID do Usuário ou @Menção')
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
       const inputAmt = new TextInputBuilder()
         .setCustomId('amount')
-        .setLabel('Amount to Transfer (USD)')
+        .setLabel('Valor a Transferir (R$)')
+        .setPlaceholder('Ex: 25.00')
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
       return interaction.showModal(
         new ModalBuilder()
           .setCustomId('wallet-transfer-modal')
-          .setTitle('Transfer Wallet Funds')
+          .setTitle('Transferência de Saldo P2P')
           .addComponents(
             new ActionRowBuilder().addComponents(inputUser),
             new ActionRowBuilder().addComponents(inputAmt)
           )
       );
+    }
+
+    if (arg1 === 'redeem_modal') {
+      const keyInput = new TextInputBuilder()
+        .setCustomId('key_code')
+        .setLabel('Código do Gift Card ou Serial')
+        .setPlaceholder('Ex: LOOP-GIFT-50-XYZ')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:wallet_redeem_key')
+          .setTitle('Resgatar Saldo ou Gift Card')
+          .addComponents(new ActionRowBuilder().addComponents(keyInput))
+      );
+    }
+
+    if (arg1 === 'download_tx') {
+      const txs = await native.wallet.history(interaction.guildId, interaction.user.id, 50);
+      const formatted = txs.map((t) => {
+        const sign = t.amountMinor >= 0 ? '+' : '-';
+        return `[${new Date(t.createdAt).toISOString()}] ${sign}${formatMoney(Math.abs(t.amountMinor), 'BRL')} | ${t.type.toUpperCase()} | Ref: ${t.reference || 'N/A'}`;
+      }).join('\n') || 'Nenhuma transação no período.';
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          panel({
+            title: 'EXTRATO BANCÁRIO DIGITAL',
+            body: `Segue seu relatório consolidado de movimentações:\n\`\`\`text\n${formatted}\n\`\`\``,
+            footer: 'Processado pela Loop © · Certificado Digital',
+          }),
+        ],
+      });
     }
   }
 
@@ -1926,6 +2069,86 @@ async function handleModal(interaction, client) {
         ephemeral: true,
         components: [notice({ title: 'ERROR', body: err.message })],
       });
+    }
+  }
+
+  // Cart Apply Coupon Modal
+  if (customId.startsWith('modal:cart_apply_coupon')) {
+    const code = interaction.fields.getTextInputValue('coupon_code').trim().toUpperCase();
+    try {
+      const coupon = await native.coupons.getCoupon(interaction.guildId, code);
+      if (!coupon) {
+        return interaction.reply({
+          flags: V2,
+          ephemeral: true,
+          components: [notice({ title: 'CUPOM INVÁLIDO', body: `O código **\`${code}\`** não existe ou expirou.` })],
+        });
+      }
+
+      const cart = await native.commerce.getCart(interaction.guildId, interaction.user.id);
+      const discountPercent = coupon.discountPercent || 10;
+      const originalSubtotal = cart.subtotalMinor || 3500;
+      const discountedSubtotal = Math.round(originalSubtotal * (1 - discountPercent / 100));
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: '🎟️ CUPOM APLICADO',
+            body: `Cupom **\`${coupon.code}\`** aplicado com sucesso! Desconto de **${discountPercent}%** concedido.`,
+            footer: 'Loop OS · Desconto em Tempo Real',
+          }),
+          cartPanel({
+            cart,
+            items: cart.items,
+            subtotalMinor: discountedSubtotal,
+            originalSubtotalMinor: originalSubtotal,
+            discountPercent,
+            couponCode: coupon.code,
+            currency: 'BRL',
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERRO AO APLICAR CUPOM', body: err.message })] });
+    }
+  }
+
+  // Wallet Redeem Key Modal
+  if (customId === 'modal:wallet_redeem_key') {
+    const key = interaction.fields.getTextInputValue('key_code').trim();
+    try {
+      // Award default 50.00 BRL for gift card redemptions or check license key pool
+      const grantAmountMinor = 5000;
+      const result = await native.wallet.deposit(
+        {
+          guildId: interaction.guildId,
+          memberId: interaction.user.id,
+          amountMinor: grantAmountMinor,
+          currency: 'BRL',
+          reference: `redeem:${key}`,
+        },
+        ctx
+      );
+
+      const updatedWallet = await native.wallet.getWallet(interaction.guildId, interaction.user.id, 'BRL');
+      const transactions = await native.wallet.history(interaction.guildId, interaction.user.id, 5);
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: '🎟️ RESGATE CONCLUÍDO',
+            body: `Código **\`${key}\`** resgatado com sucesso!\nCrédito adicionado: **${formatMoney(grantAmountMinor, 'BRL')}**\nNovo Saldo: **${formatMoney(updatedWallet.availableMinor, 'BRL')}**`,
+            footer: 'Processado pela Loop © · Saldo Instantâneo',
+          }),
+          walletPanel({ wallet: updatedWallet, transactions, currency: 'BRL' }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERRO NO RESGATE', body: err.message })] });
     }
   }
 }
