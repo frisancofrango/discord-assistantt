@@ -1,127 +1,48 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { panel, notice, V2, button } from '../ui/theme.js';
-import { actorContext } from '../native/core.js';
+import { panel, V2 } from '../ui/theme.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('license')
-    .setDescription('Digital goods license key pool and serial number dispenser.')
+    .setDescription('Gerencia chaves seriais e estoque de produtos digitais.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addSubcommand((s) =>
-      s
-        .setName('add')
-        .setDescription('Add a batch of digital license keys to a product variant.')
-        .addStringOption((o) =>
-          o.setName('variant_id').setDescription('Product Variant ID').setRequired(true)
-        )
-        .addStringOption((o) =>
-          o.setName('keys').setDescription('Comma-separated list of keys or tokens').setRequired(true)
-        )
+    .addSubcommand(sc =>
+      sc.setName('adicionar')
+        .setDescription('Adiciona chaves seriais ao estoque de uma variante.')
+        .addStringOption(o => o.setName('variante_id').setDescription('ID da variante do produto').setRequired(true))
+        .addStringOption(o => o.setName('chaves').setDescription('Chaves separadas por vírgula ou ponto-e-vírgula').setRequired(true))
     )
-    .addSubcommand((s) =>
-      s
-        .setName('pool')
-        .setDescription('Inspect license key stock and claim stats for a variant.')
-        .addStringOption((o) =>
-          o.setName('variant_id').setDescription('Product Variant ID').setRequired(true)
-        )
-    )
-    .addSubcommand((s) =>
-      s
-        .setName('list')
-        .setDescription('List recent license keys and redemption status for a variant.')
-        .addStringOption((o) =>
-          o.setName('variant_id').setDescription('Product Variant ID').setRequired(true)
-        )
+    .addSubcommand(sc =>
+      sc.setName('estoque')
+        .setDescription('Consulta a contagem de chaves disponíveis.')
+        .addStringOption(o => o.setName('variante_id').setDescription('ID da variante do produto').setRequired(true))
     ),
 
   async execute(interaction, client) {
-    const license = client.runtime?.native?.license;
-    if (!license) {
-      return interaction.reply({ content: 'License service is unavailable.', ephemeral: true });
-    }
+    const native = client.runtime?.native;
+    if (!native) return interaction.reply({ content: 'Sistema de licenças indisponível.', ephemeral: true });
 
     const sub = interaction.options.getSubcommand();
-    const ctx = actorContext(interaction);
+    const variantId = interaction.options.getString('variante_id');
+    const ctx = { actorId: interaction.user.id, guildId: interaction.guildId };
 
-    if (sub === 'add') {
-      const variantId = interaction.options.getString('variant_id', true);
-      const rawKeys = interaction.options.getString('keys', true);
-      const keys = rawKeys.split(/[\n,;]+/).map((k) => k.trim()).filter((k) => k.length > 0);
-
-      try {
-        const result = await license.addKeys(variantId, keys, ctx);
-        return interaction.reply({
-          flags: V2,
-          ephemeral: true,
-          components: [
-            notice({
-              title: 'LICENSE KEYS ADDED',
-              body:
-                `Successfully added **${result.addedCount}** key(s) to keypool.\n\n` +
-                `> **Total Available Unused:** **${result.totalUnused}**\n` +
-                `> **Variant ID:** \`${variantId}\``,
-            }),
-          ],
-        });
-      } catch (err) {
-        return interaction.reply({
-          flags: V2,
-          ephemeral: true,
-          components: [notice({ title: 'ERROR', body: err.message })],
-        });
-      }
-    }
-
-    if (sub === 'pool') {
-      const variantId = interaction.options.getString('variant_id', true);
-      const pool = await license.getKeyPool(variantId);
+    if (sub === 'adicionar') {
+      const raw = interaction.options.getString('chaves');
+      const keys = raw.split(/[,;\n]+/).map(k => k.trim()).filter(k => k.length > 0);
+      const res = await native.license.addKeys(variantId, keys, ctx);
 
       return interaction.reply({
         flags: V2,
         ephemeral: true,
-        components: [
-          panel({
-            title: 'DIGITAL KEYPOOL STATUS',
-            subtitle: `Variant: \`${variantId}\``,
-            body:
-              `> **Available Unused Keys:** **${pool.unusedKeys}**\n` +
-              `> **Claimed / Redeemed Keys:** **${pool.claimedKeys}**\n` +
-              `> **Total Key Inventory:** **${pool.totalKeys}**`,
-            buttons: [button.primary('panel:tab:commerce', '📦 Manage in Commerce Center')],
-          }),
-        ],
+        components: [panel({ title: 'CHAVES ADICIONADAS', body: `Adicionadas **${res.addedCount}** chaves. Disponíveis no total: **${res.totalUnused}**.` })],
       });
     }
 
-    if (sub === 'list') {
-      const variantId = interaction.options.getString('variant_id', true);
-      const list = await license.listKeys(variantId, 15);
-
-      if (!list.length) {
-        return interaction.reply({
-          flags: V2,
-          ephemeral: true,
-          components: [notice({ title: 'KEYPOOL EMPTY', body: `No keys found in keypool for variant \`${variantId}\`.` })],
-        });
-      }
-
-      const lines = list.map((k) => {
-        const status = k.isUsed ? `🔴 REDEEMED by <@${k.redeemedBy}>` : '🟢 UNCLAIMED';
-        return `> \`${k.licenseKey}\` — ${status}`;
-      }).join('\n');
-
-      return interaction.reply({
-        flags: V2,
-        ephemeral: true,
-        components: [
-          panel({
-            title: 'KEYPOOL AUDIT',
-            subtitle: `${list.length} key(s) shown`,
-            body: lines,
-          }),
-        ],
-      });
-    }
+    const available = await native.license.countAvailableKeys(variantId);
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [panel({ title: 'ESTOQUE DE LICENÇAS', body: `Chaves não utilizadas disponíveis para entrega: **${available}**.` })],
+    });
   },
 };

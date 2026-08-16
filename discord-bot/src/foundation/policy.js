@@ -25,3 +25,21 @@ export function evaluatePolicy(input) {
 const deny = (reason) => ({ allowed: false, requiresApproval: false, reason });
 const approvalRequired = (reason) => ({ allowed: false, requiresApproval: true, reason });
 export const FORBIDDEN_BEHAVIORS = Object.freeze([...forbidden]);
+
+const confirmations = new Map();
+
+export function createConfirmation(data, ttlMs = 120000) {
+  const token = Math.random().toString(36).slice(2, 12);
+  confirmations.set(token, { ...data, expiresAt: Date.now() + ttlMs });
+  setTimeout(() => confirmations.delete(token), ttlMs).unref?.();
+  return token;
+}
+
+export function consume(token) {
+  const data = confirmations.get(token);
+  if (!data) return null;
+  confirmations.delete(token);
+  if (data.expiresAt < Date.now()) return null;
+  return data;
+}
+

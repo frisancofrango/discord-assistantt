@@ -4,27 +4,17 @@ import { cartPanel, V2 } from '../ui/theme.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('cart')
-    .setDescription('View and manage your active shopping cart.'),
+    .setDescription('Visualiza e gerencia seu carrinho de compras ativo.'),
 
   async execute(interaction, client) {
-    const commerce = client.runtime?.native?.commerce;
-    if (!commerce) {
-      return interaction.reply({ content: 'Commerce systems are currently unavailable.', ephemeral: true });
-    }
+    const native = client.runtime?.native;
+    if (!native) return interaction.reply({ content: 'Sistema de comércio indisponível.', ephemeral: true });
 
-    const cart = await commerce.getCart(interaction.guildId, interaction.user.id);
-    const panel = cartPanel({
-      cart,
-      items: cart.items,
-      subtotalMinor: cart.subtotalMinor,
-      currency: cart.currency,
-      expiresAt: cart.expiresAt,
-    });
-
+    const cart = await native.commerce.getCart(interaction.guildId, interaction.user.id);
     return interaction.reply({
       flags: V2,
       ephemeral: true,
-      components: [panel],
+      components: [cartPanel({ cart, items: cart.items, subtotalMinor: cart.subtotalMinor, currency: 'BRL' })],
     });
   },
 };

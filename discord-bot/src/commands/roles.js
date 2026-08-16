@@ -1,68 +1,29 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { panel, notice, V2, button } from '../ui/theme.js';
-import { actorContext } from '../native/core.js';
+import { panel, button, V2 } from '../ui/theme.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('roles')
-    .setDescription('Interactive self-service button roles and vanity role assignment.')
+    .setDescription('Cria painéis de auto-atribuição de cargos para membros.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
-    .addSubcommand((s) =>
-      s
-        .setName('menu')
-        .setDescription('Create an interactive self-service role button panel.')
-        .addStringOption((o) =>
-          o.setName('title').setDescription('Menu title (e.g. Notification Roles)').setRequired(true)
-        )
-        .addStringOption((o) =>
-          o.setName('description').setDescription('Menu instructions').setRequired(true)
-        )
-        .addRoleOption((o) =>
-          o.setName('role1').setDescription('First selectable role').setRequired(true)
-        )
-        .addRoleOption((o) =>
-          o.setName('role2').setDescription('Second selectable role').setRequired(false)
-        )
-        .addRoleOption((o) =>
-          o.setName('role3').setDescription('Third selectable role').setRequired(false)
-        )
-        .addRoleOption((o) =>
-          o.setName('role4').setDescription('Fourth selectable role').setRequired(false)
-        )
-        .addRoleOption((o) =>
-          o.setName('role5').setDescription('Fifth selectable role').setRequired(false)
-        )
+    .addSubcommand(sc =>
+      sc.setName('painel')
+        .setDescription('Cria um painel interativo de autorole.')
+        .addRoleOption(o => o.setName('cargo').setDescription('Cargo a ser atribuído').setRequired(true))
+        .addStringOption(o => o.setName('label').setDescription('Texto do botão (ex: Notificações)').setRequired(true))
     ),
 
-  async execute(interaction, client) {
-    const roleService = client.runtime?.native?.roles;
-    if (!roleService) {
-      return interaction.reply({ content: 'Role service is unavailable.', ephemeral: true });
-    }
-
-    const title = interaction.options.getString('title', true);
-    const desc = interaction.options.getString('description', true);
-
-    const roles = [];
-    for (let i = 1; i <= 5; i++) {
-      const r = interaction.options.getRole(`role${i}`);
-      if (r) roles.push({ id: r.id, name: r.name });
-    }
-
-    const ctx = actorContext(interaction);
-    const menu = await roleService.createMenu(interaction.guildId, { title, description: desc, roles }, ctx);
-
-    const buttons = roles.map((r) => button.neutral(`role:toggle:${r.id}`, `🏷️ ${r.name}`));
+  async execute(interaction) {
+    const role = interaction.options.getRole('cargo');
+    const label = interaction.options.getString('label');
 
     return interaction.reply({
       flags: V2,
       components: [
         panel({
-          title: `🎭 ${menu.title.toUpperCase()}`,
-          subtitle: 'Click any button to add or remove roles',
-          body: menu.description,
-          buttons,
-          footer: 'Self-Service Role Manager',
+          title: 'AUTO-ATRIBUIÇÃO DE CARGOS',
+          body: `Clique no botão abaixo para receber ou remover o cargo <@&${role.id}>:`,
+          buttons: [button.primary(`role:toggle:${role.id}`, label)],
         }),
       ],
     });

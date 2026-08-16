@@ -1,37 +1,40 @@
-import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { buildProposal } from '../autonomy/proposal.js';
-import { receiptPanel } from '../autonomy/ui.js';
-import { correlationId } from '../foundation/logger.js';
+import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { panel, V2 } from '../ui/theme.js';
 
 export default {
-  data: new SlashCommandBuilder().setName('task').setDescription('Ask Loop to inspect and execute a server task (runs autonomously).').addStringOption(o => o.setName('goal').setDescription('What should Loop accomplish?').setRequired(true).setMaxLength(1000)).setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  data: new SlashCommandBuilder()
+    .setName('task')
+    .setDescription('Solicita ao Loop a execução autônoma de uma tarefa complexa no servidor.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption(o => o.setName('objetivo').setDescription('Qual objetivo o Loop deve planejar e executar?').setRequired(true).setMaxLength(1000)),
+
   async execute(interaction, client) {
-    if (!interaction.inGuild() || interaction.guild.ownerId !== interaction.user.id) return interaction.reply({ content: 'Only the server owner can run /task.', ephemeral: true });
-    await interaction.deferReply({ flags: MessageFlags.IsComponentsV2 });
-    const goal = interaction.options.getString('goal', true);
-    const runtime = client.runtime, db = runtime.db;
+    const goal = interaction.options.getString('objetivo');
+    await interaction.deferReply({ ephemeral: true });
+
+    const actor = {
+      id: interaction.user.id,
+      guildId: interaction.guildId,
+      authenticated: true,
+      isOwner: interaction.guild?.ownerId === interaction.user.id,
+      permissions: interaction.memberPermissions?.toArray() ?? [],
+    };
+
     try {
-      const guild = (await db.query(`INSERT INTO guilds(discord_id,name) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET name=excluded.name RETURNING *`, [interaction.guildId, interaction.guild.name])).rows[0];
-      const user = (await db.query(`INSERT INTO users(discord_id,username) VALUES($1,$2) ON CONFLICT(discord_id) DO UPDATE SET username=excluded.username RETURNING *`, [interaction.user.id, interaction.user.username])).rows[0];
-      await interaction.editReply({ content: `on it.` });
-      const snapshotReceipt = await client.discordRuntime.tools.invoke('guild.snapshot', { guildId: interaction.guildId }, { client, db, idempotencyKey: `task:${interaction.id}:snapshot`, autonomy: 'advisor', actor: { authenticated: true, guildMember: true, isOwner: true, permissions: [] }, correlationId: correlationId() });
-      const before = snapshotReceipt.output.snapshot;
-      const { task, plan } = await runtime.agent.planner.create({ goal, context: { observedAt: before.capturedAt, guildSnapshot: before }, guildId: guild.id, actorId: user.id, idempotencyKey: `task:${interaction.id}` });
-      const draft = buildProposal({ task, plan, beforeSnapshot: before, tierCount: runtime.autonomy.config.tierCount });
-      draft.beforeSnapshot = before;
-      const row = await runtime.autonomy.store.createProposal(draft);
-      const proposal = runtime.autonomy.hydrate(row);
-      proposal.beforeSnapshot = before;
-      const grant = await runtime.autonomy.approvals.issue({ proposal, actorId: interaction.user.id });
-      const actor = { id: interaction.user.id, guildId: interaction.guildId, authenticated: true, bot: false, isOwner: true, permissions: [] };
-      const safe = proposal.machinePlan.steps.filter((s) => !s.irreversible && s.risk !== 'high').map((s) => s.id);
-      const decision = await runtime.autonomy.approvals.decide({ token: grant.token, proposal, actor, decision: 'approve_all', selectedStepIds: safe, policy: { default: { autonomy: 'operator' } }, budget: { limit: runtime.agent.router?.budgetUsd ?? 5, spent: 0 } });
-      const result = await runtime.autonomy.executor.start({ proposal, decision, actor });
-      const titles = proposal.machinePlan.steps.slice(0, 3).map((s) => s.title).join(' \u00b7 ');
-      await interaction.editReply({ ...receiptPanel(result.receipt), content: `done: ${titles}${proposal.machinePlan.steps.length > 3 ? ` +${proposal.machinePlan.steps.length - 3} more` : ''}` }).catch(() => {});
+      const proposal = await client.runtime.autonomy.propose({
+        guildId: interaction.guildId,
+        actor,
+        goal,
+        rawInput: `/task objetivo:${goal}`,
+      });
+
+      const { proposalPanel } = await import('../autonomy/ui.js');
+      return interaction.editReply({ ...proposalPanel(proposal), ephemeral: true });
     } catch (err) {
-      client.logger?.error?.({ err, goal }, 'slash task failed');
-      await interaction.editReply({ content: `task failed: ${String(err?.message ?? err).slice(0, 800)}` }).catch(() => {});
+      return interaction.editReply({
+        flags: V2,
+        components: [panel({ title: 'FALHA NO PLANEJAMENTO', body: err.message })],
+      });
     }
-  }
+  },
 };

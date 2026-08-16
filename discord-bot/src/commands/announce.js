@@ -1,29 +1,29 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { panel, V2 } from '../ui/theme.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('announce')
-    .setDescription('Post a clean monochrome announcement panel.')
-    .addStringOption((o) =>
-      o.setName('title').setDescription('Headline').setRequired(true),
-    )
-    .addStringOption((o) =>
-      o.setName('message').setDescription('Body text').setRequired(true),
-    )
-    .addStringOption((o) =>
-      o.setName('footer').setDescription('Small footer line').setRequired(false),
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    .setDescription('Publica um anúncio oficial com design limpo e moderno.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addChannelOption(o => o.setName('canal').setDescription('Canal de destino').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true))
+    .addStringOption(o => o.setName('titulo').setDescription('Título do comunicado').setRequired(true).setMaxLength(256))
+    .addStringOption(o => o.setName('mensagem').setDescription('Conteúdo do anúncio').setRequired(true).setMaxLength(4000)),
 
   async execute(interaction) {
-    const title = interaction.options.getString('title', true);
-    const message = interaction.options.getString('message', true);
-    const footer = interaction.options.getString('footer') ?? undefined;
+    const channel = interaction.options.getChannel('canal');
+    const title = interaction.options.getString('titulo');
+    const message = interaction.options.getString('mensagem');
 
-    await interaction.reply({
+    await channel.send({
       flags: V2,
-      components: [panel({ title: title.toUpperCase(), body: message, footer })],
+      components: [panel({ title: title.toUpperCase(), body: message, footer: `Comunicado Oficial · ${interaction.guild.name}` })],
+    });
+
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [panel({ title: 'ANÚNCIO PUBLICADO', body: `Comunicado enviado com sucesso para <#${channel.id}>.` })],
     });
   },
 };

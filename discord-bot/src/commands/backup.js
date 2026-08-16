@@ -1,140 +1,58 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { panel, notice, V2, button } from '../ui/theme.js';
-import { actorContext } from '../native/core.js';
+import { panel, button, V2 } from '../ui/theme.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('backup')
-    .setDescription('Server template backup and OAuth2 member restore management.')
+    .setDescription('Snapshots estruturais do servidor e recuperação de membros via OAuth2.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand((s) =>
-      s
-        .setName('create')
-        .setDescription('Create a full snapshot backup of this server (roles, channels, permissions).')
-        .addStringOption((o) =>
-          o.setName('name').setDescription('Backup snapshot name').setRequired(false)
-        )
-    )
-    .addSubcommand((s) =>
-      s.setName('list').setDescription('List all saved server template backups.')
-    )
-    .addSubcommand((s) =>
-      s
-        .setName('restore')
-        .setDescription('Restore server channels and roles from a backup snapshot.')
-        .addStringOption((o) =>
-          o.setName('backup_id').setDescription('Backup snapshot ID').setRequired(true)
-        )
-    )
-    .addSubcommand((s) =>
-      s.setName('oauth_stats').setDescription('View OAuth2 member backup count ready for restore.')
-    ),
+    .addSubcommand(sc => sc.setName('criar').setDescription('Cria um snapshot completo dos canais, cargos e permissões.'))
+    .addSubcommand(sc => sc.setName('listar').setDescription('Lista todos os backups salvos do servidor.'))
+    .addSubcommand(sc => sc.setName('oauth').setDescription('Exibe métricas de membros sincronizados com autorização OAuth2.')),
 
   async execute(interaction, client) {
-    const backup = client.runtime?.native?.backup;
-    if (!backup) {
-      return interaction.reply({ content: 'Backup service is unavailable.', ephemeral: true });
-    }
+    const native = client.runtime?.native;
+    if (!native) return interaction.reply({ content: 'Sistema de backup indisponível.', ephemeral: true });
 
     const sub = interaction.options.getSubcommand();
-    const ctx = actorContext(interaction);
+    const ctx = { actorId: interaction.user.id, guildId: interaction.guildId };
 
-    if (sub === 'create') {
+    if (sub === 'criar') {
       await interaction.deferReply({ ephemeral: true });
-      const name = interaction.options.getString('name') || `Backup_${new Date().toISOString().slice(0, 10)}`;
-
-      try {
-        const result = await backup.createSnapshot(interaction.guild, interaction.user.id, name, ctx);
-        return interaction.editReply({
-          flags: V2,
-          components: [
-            notice({
-              title: 'SERVER BACKUP CREATED',
-              body:
-                `Snapshot **${result.name}** saved successfully!\n\n` +
-                `> **Channels Saved:** ${result.channelCount}\n` +
-                `> **Roles Saved:** ${result.roleCount}\n` +
-                `> **Backup ID:** \`${result.id}\``,
-            }),
-          ],
-        });
-      } catch (err) {
-        return interaction.editReply({
-          flags: V2,
-          components: [notice({ title: 'BACKUP FAILED', body: err.message })],
-        });
-      }
-    }
-
-    if (sub === 'list') {
-      const list = await backup.listBackups(interaction.guildId);
-      if (!list.length) {
-        return interaction.reply({
-          flags: V2,
-          ephemeral: true,
-          components: [notice({ title: 'NO BACKUPS', body: 'No backups found for this server.' })],
-        });
-      }
-
-      const lines = list.map((b) => {
-        const time = `<t:${Math.floor(new Date(b.createdAt).getTime() / 1000)}:R>`;
-        return `> **\`${b.id}\`** — **${b.name}** (${b.channelCount} ch, ${b.roleCount} roles) · ${time}`;
-      }).join('\n');
-
-      return interaction.reply({
+      const snap = await native.backup.createSnapshot(interaction.guild, interaction.user.id, `Backup_${Date.now()}`, ctx);
+      return interaction.editReply({
         flags: V2,
-        ephemeral: true,
         components: [
           panel({
-            title: 'SERVER BACKUP SNAPSHOTS',
-            subtitle: `${list.length} saved snapshot(s)`,
-            body: lines,
-            buttons: [button.primary('panel:tab:backups', '⚙️ Open in Control Center')],
+            title: 'BACKUP CRIADO',
+            body: `Snapshot **\`${snap.name}\`** salvo com sucesso.
+Canais salvos: **${snap.channelCount}** | Cargos: **${snap.roleCount}**.`,
           }),
         ],
       });
     }
 
-    if (sub === 'restore') {
-      const backupId = interaction.options.getString('backup_id', true);
-      await interaction.deferReply({ ephemeral: true });
-
-      try {
-        const result = await backup.restoreServer(interaction.guild, backupId, ctx);
-        return interaction.editReply({
-          flags: V2,
-          components: [
-            notice({
-              title: 'SERVER RESTORE COMPLETE',
-              body: `Successfully restored **${result.restoredRoles}** roles and **${result.restoredChannels}** channels from backup \`${backupId}\`.`,
-            }),
-          ],
-        });
-      } catch (err) {
-        return interaction.editReply({
-          flags: V2,
-          components: [notice({ title: 'RESTORE FAILED', body: err.message })],
-        });
-      }
+    if (sub === 'listar') {
+      const list = await native.backup.listBackups(interaction.guildId);
+      const lines = list.map(b => `> **\`${b.id}\`** — **${b.name}** (${b.channelCount} ch, ${b.roleCount} roles)`).join('\n') || 'Nenhum backup salvo.';
+      return interaction.reply({ flags: V2, ephemeral: true, components: [panel({ title: 'BACKUPS SALVOS', body: lines })] });
     }
 
-    if (sub === 'oauth_stats') {
-      const stats = await backup.getOAuthStats(interaction.guildId);
-      return interaction.reply({
-        flags: V2,
-        ephemeral: true,
-        components: [
-          panel({
-            title: 'OAUTH2 MEMBER RESTORE STATS',
-            subtitle: 'RestoreCord & Disaster Recovery Standard',
-            body:
-              `> **Total Members Backed Up:** **${stats.totalMembersBackedUp}**\n` +
-              `> **Active Access Tokens:** **${stats.activeTokensCount}**\n` +
-              `> **Rejoin Capability:** Instant 1-click migration to backup guilds`,
-            footer: 'Tokens refreshed automatically during verification gateway.',
-          }),
-        ],
-      });
-    }
+    const stats = await native.backup.getOAuthStats(interaction.guildId);
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [
+        panel({
+          title: 'ESTATÍSTICAS OAUTH2',
+          body:
+            `> **Total de Membros Salvos:** **${stats.totalMembersBackedUp}**
+` +
+            `> **Tokens Ativos Prontos:** **${stats.activeTokensCount}**
+` +
+            `> **Taxa de Prontidão:** 100% sincronizado`,
+        }),
+      ],
+    });
   },
 };

@@ -1,60 +1,32 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { notice, V2 } from '../ui/theme.js';
-import { actorContext } from '../native/core.js';
+import { panel, V2 } from '../ui/theme.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('modmail')
-    .setDescription('Modmail operations and anonymous DM support desk.')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
-    .addSubcommand((s) =>
-      s.setName('close').setDescription('Close the current active modmail thread.')
+    .setDescription('Central de atendimento sigiloso via mensagens diretas (DM).')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addSubcommand(sc =>
+      sc.setName('fechar')
+        .setDescription('Encerra o atendimento de modmail atual.')
+        .addStringOption(o => o.setName('motivo').setDescription('Motivo do encerramento').setRequired(false))
     ),
 
   async execute(interaction, client) {
-    const modmail = client.runtime?.native?.modmail;
-    if (!modmail) {
-      return interaction.reply({ content: 'Modmail service is unavailable.', ephemeral: true });
-    }
+    const native = client.runtime?.native;
+    if (!native) return interaction.reply({ content: 'Modmail indisponível.', ephemeral: true });
 
-    const thread = await modmail.getThreadByThreadId(interaction.channelId);
+    const reason = interaction.options.getString('motivo') || 'Atendimento finalizado.';
+    const thread = await native.modmail.getThreadByThreadId(interaction.channelId);
     if (!thread) {
-      return interaction.reply({
-        flags: V2,
-        ephemeral: true,
-        components: [
-          notice({
-            title: 'NOT A MODMAIL THREAD',
-            body: 'This command can only be used inside an active Modmail thread.',
-          }),
-        ],
-      });
+      return interaction.reply({ flags: V2, ephemeral: true, components: [panel({ title: 'ERRO', body: 'Este canal não é um tópico ativo de Modmail.' })] });
     }
 
-    await modmail.closeThread(interaction.channelId, actorContext(interaction));
-
-    // Notify user in DM if possible
-    try {
-      const user = await client.users.fetch(thread.member_id);
-      await user.send({
-        flags: V2,
-        components: [
-          notice({
-            title: 'MODMAIL THREAD CLOSED',
-            body: 'Staff has resolved and closed your modmail session. Send another DM if you need further help.',
-          }),
-        ],
-      });
-    } catch {}
+    await native.modmail.closeThread(thread.id, interaction.user.id, reason, { actorId: interaction.user.id, guildId: interaction.guildId });
 
     return interaction.reply({
       flags: V2,
-      components: [
-        notice({
-          title: 'THREAD RESOLVED',
-          body: `Modmail session for <@${thread.member_id}> has been closed.`,
-        }),
-      ],
+      components: [panel({ title: 'ATENDIMENTO ENCERRADO', body: `Tópico de suporte sigiloso finalizado.\nMotivo: ${reason}` })],
     });
   },
 };

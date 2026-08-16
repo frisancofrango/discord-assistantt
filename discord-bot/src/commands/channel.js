@@ -1,108 +1,50 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { panel, notice, V2, button } from '../ui/theme.js';
-import { actorContext } from '../native/core.js';
+import { panel, V2 } from '../ui/theme.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('channel')
-    .setDescription('Channel lockdown, unlock, and automated operating schedule controls.')
+    .setDescription('Controle de horários de expediente e trancas de canais.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-    .addSubcommand((s) =>
-      s
-        .setName('lock')
-        .setDescription('Lock a channel to prevent regular members from sending messages.')
-        .addChannelOption((o) =>
-          o.setName('target').setDescription('Channel to lock (defaults to current)').setRequired(false)
-        )
-        .addStringOption((o) =>
-          o.setName('reason').setDescription('Reason for locking').setRequired(false)
-        )
-    )
-    .addSubcommand((s) =>
-      s
-        .setName('unlock')
-        .setDescription('Unlock a channel to restore regular member messaging.')
-        .addChannelOption((o) =>
-          o.setName('target').setDescription('Channel to unlock (defaults to current)').setRequired(false)
-        )
-        .addStringOption((o) =>
-          o.setName('reason').setDescription('Reason for unlocking').setRequired(false)
-        )
-    )
-    .addSubcommand((s) =>
-      s.setName('hours').setDescription('Inspect server working & support service hours.')
+    .addSubcommand(sc => sc.setName('status').setDescription('Exibe o horário de funcionamento atual do servidor.'))
+    .addSubcommand(sc =>
+      sc.setName('horario')
+        .setDescription('Define o horário de atendimento.')
+        .addStringOption(o => o.setName('inicio').setDescription('Horário de abertura (ex: 09:00)').setRequired(true))
+        .addStringOption(o => o.setName('fim').setDescription('Horário de encerramento (ex: 22:00)').setRequired(true))
+        .addStringOption(o => o.setName('mensagem').setDescription('Mensagem de ausência').setRequired(false))
     ),
 
   async execute(interaction, client) {
-    const schedule = client.runtime?.native?.schedule;
-    if (!schedule) {
-      return interaction.reply({ content: 'Channel schedule system is unavailable.', ephemeral: true });
-    }
+    const native = client.runtime?.native;
+    if (!native) return interaction.reply({ content: 'Sistema operacional indisponível.', ephemeral: true });
 
     const sub = interaction.options.getSubcommand();
-    const ctx = actorContext(interaction);
+    const ctx = { actorId: interaction.user.id, guildId: interaction.guildId };
 
-    if (sub === 'lock') {
-      const channel = interaction.options.getChannel('target') || interaction.channel;
-      const reason = interaction.options.getString('reason') || 'Manual Administrator Channel Lock';
+    if (sub === 'horario') {
+      const start = interaction.options.getString('inicio');
+      const end = interaction.options.getString('fim');
+      const msg = interaction.options.getString('mensagem') || 'Estamos fora do expediente.';
 
-      await interaction.deferReply({ ephemeral: true });
-      try {
-        await schedule.lockChannel(channel, reason, ctx);
-        return interaction.editReply({
-          flags: V2,
-          components: [
-            notice({
-              title: '🔒 CHANNEL LOCKED',
-              body: `Successfully locked <#${channel.id}>.\n\n**Reason:** ${reason}`,
-            }),
-          ],
-        });
-      } catch (err) {
-        return interaction.editReply({ flags: V2, components: [notice({ title: 'LOCK FAILED', body: err.message })] });
-      }
-    }
-
-    if (sub === 'unlock') {
-      const channel = interaction.options.getChannel('target') || interaction.channel;
-      const reason = interaction.options.getString('reason') || 'Manual Administrator Channel Unlock';
-
-      await interaction.deferReply({ ephemeral: true });
-      try {
-        await schedule.unlockChannel(channel, reason, ctx);
-        return interaction.editReply({
-          flags: V2,
-          components: [
-            notice({
-              title: '🔓 CHANNEL UNLOCKED',
-              body: `Restored standard messaging permissions in <#${channel.id}>.`,
-            }),
-          ],
-        });
-      } catch (err) {
-        return interaction.editReply({ flags: V2, components: [notice({ title: 'UNLOCK FAILED', body: err.message })] });
-      }
-    }
-
-    if (sub === 'hours') {
-      const hours = await schedule.getOperatingHours(interaction.guildId);
-      const statusStr = hours.isOpen ? '🟢 **ONLINE & OPEN**' : '🔴 **CLOSED (OUT OF OFFICE)**';
-
+      const res = await native.schedule.setOperatingHours(interaction.guildId, { enabled: true, startTime: start, endTime: end, outOfOfficeMessage: msg }, ctx);
       return interaction.reply({
         flags: V2,
         ephemeral: true,
-        components: [
-          panel({
-            title: 'SUPPORT & SERVICE OPERATING HOURS',
-            subtitle: `Current Status: ${statusStr}`,
-            body:
-              `> **Active Days:** ${hours.days.map((d) => d.toUpperCase()).join(', ')}\n` +
-              `> **Working Shifts:** **${hours.startTime} — ${hours.endTime} ${hours.timezone}**\n` +
-              `> **Out of Office Notice:**\n> *"${hours.outOfOfficeMessage}"*`,
-            buttons: [button.primary('panel:tab:schedules', '⏰ Manage in Control Panel')],
-          }),
-        ],
+        components: [panel({ title: 'HORÁRIO ATUALIZADO', body: `Expediente definido: **${res.startTime} às ${res.endTime}**.` })],
       });
     }
+
+    const hours = await native.schedule.getOperatingHours(interaction.guildId);
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [
+        panel({
+          title: 'EXPEDIENTE DO SERVIDOR',
+          body: `> **Status:** ${hours.isOpen ? '🟢 **ABERTO**' : '🔴 **FECHADO**'}\n> **Horário:** **${hours.startTime} às ${hours.endTime}**`,
+        }),
+      ],
+    });
   },
 };

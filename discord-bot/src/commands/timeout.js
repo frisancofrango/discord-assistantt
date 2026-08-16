@@ -1,57 +1,29 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { panel, V2 } from '../ui/theme.js';
-import { guardTarget, fail, logAction } from '../lib/moderation.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('timeout')
-    .setDescription('Timeout a member for a number of minutes.')
-    .addUserOption((o) =>
-      o.setName('user').setDescription('User to timeout').setRequired(true),
-    )
-    .addIntegerOption((o) =>
-      o
-        .setName('minutes')
-        .setDescription('Duration in minutes (0 to remove timeout)')
-        .setMinValue(0)
-        .setMaxValue(40320) // 28 days, Discord max
-        .setRequired(true),
-    )
-    .addStringOption((o) =>
-      o.setName('reason').setDescription('Reason').setRequired(false),
-    )
+    .setDescription('Aplica um castigo temporário (timeout) a um membro.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
-    .setDMPermission(false),
+    .addUserOption(o => o.setName('usuario').setDescription('Membro a ser silenciado').setRequired(true))
+    .addIntegerOption(o => o.setName('minutos').setDescription('Duração do castigo em minutos (ex: 10)').setRequired(true).setMinValue(1).setMaxValue(40320))
+    .addStringOption(o => o.setName('motivo').setDescription('Motivo do castigo').setRequired(false)),
 
-  async execute(interaction, client) {
-    const user = interaction.options.getUser('user', true);
-    const minutes = interaction.options.getInteger('minutes', true);
-    const reason = interaction.options.getString('reason') ?? 'No reason provided';
+  async execute(interaction) {
+    const user = interaction.options.getUser('usuario');
+    const mins = interaction.options.getInteger('minutos');
+    const reason = interaction.options.getString('motivo') || 'Infração de regras.';
+
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (!member) return interaction.reply({ content: 'Membro não encontrado.', ephemeral: true });
 
-    if (!member) return fail(interaction, 'That user is not in this server.');
-    const blocked = guardTarget(interaction, member);
-    if (blocked) return fail(interaction, blocked);
+    await member.timeout(mins * 60 * 1000, reason);
 
-    try {
-      await member.timeout(minutes === 0 ? null : minutes * 60 * 1000, reason);
-    } catch (err) {
-      console.error('[timeout]', err);
-      return fail(interaction, 'I could not apply that timeout. Check my permissions.');
-    }
-
-    const label = minutes === 0 ? 'Timeout removed' : `Timed out for ${minutes} min`;
-    await interaction.reply({
+    return interaction.reply({
       flags: V2,
       ephemeral: true,
-      components: [panel({ title: 'DONE', body: `${label} ${user.tag}.` })],
-    });
-
-    await logAction(client, {
-      action: minutes === 0 ? 'Timeout removed' : `Timeout (${minutes}m)`,
-      target: user.tag,
-      moderator: interaction.user.tag,
-      reason,
+      components: [panel({ title: 'CASTIGO APLICADO', body: `O membro <@${user.id}> foi silenciado por **${mins} minutos**.\nMotivo: ${reason}` })],
     });
   },
 };

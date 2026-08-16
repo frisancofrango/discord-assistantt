@@ -4,7 +4,7 @@ import { helpMenuPanel, V2 } from '../ui/theme.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('help')
-    .setDescription('List Loop commands and how to use them.'),
+    .setDescription('List Loop commands / Lista todos os comandos do Loop.'),
 
   async execute(interaction) {
     return interaction.reply({

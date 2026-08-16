@@ -1,68 +1,92 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { correlationId } from '../foundation/logger.js';
 import { healthPanel, budgetPanel, approvalsPanel, policiesPanel, memoryPanel, KINDS } from '../ui/owner.js';
 
 const SECTIONS = new Set(Object.keys(KINDS));
 
 /**
- * Owner-only Loop console. Each subcommand renders a monochrome Components V2
- * panel backed by live runtime state; panels carry Refresh / Close buttons.
+ * Render owner view for admin console.
  */
+export async function renderOwnerView(client, guildId, section = 'health') {
+  const store = client.runtime.state.database ? client.runtime.autonomy?.store : null;
+  switch (section) {
+    case 'health': {
+      const memTotal = client.runtime.memory ? (await client.runtime.memory.stats({ guildId })).total : 0;
+      const data = {
+        database: Boolean(client.runtime.state.database),
+        redis: Boolean(client.runtime.state.redis),
+        memory: {
+          enabled: Boolean(client.runtime.memory?.enabled),
+          model: client.runtime.config.embedModel,
+          dimensions: client.runtime.config.embedDimensions,
+          total: memTotal,
+        },
+        models: client.runtime.agent.router?.health() ?? {},
+        observedAt: new Date().toISOString().slice(11, 19) + 'Z',
+      };
+      return { panel: healthPanel(data) };
+    }
+    case 'budget': {
+      const budget = client.runtime.agent.router?.budget ?? { spent: 0, limit: 5, reservations: [] };
+      const usage = client.runtime.repositories.agentUsage ? await client.runtime.repositories.agentUsage.today({ guildId }) : { totalUsd: 0, byCapability: [] };
+      return {
+        panel: budgetPanel({
+          spent: usage.totalUsd,
+          limit: budget.limit,
+          byCapability: usage.byCapability,
+          reservations: budget.reservations ?? [],
+          periodStart: new Date().toISOString().slice(0, 10),
+        }),
+      };
+    }
+    case 'approvals': {
+      const rows = store ? await store.listPendingApprovals(guildId) : [];
+      return { panel: approvalsPanel(rows) };
+    }
+    case 'policies': {
+      const rows = store ? await store.listPolicies(guildId) : [];
+      return { panel: policiesPanel(rows) };
+    }
+    case 'memory': {
+      if (!client.runtime.memory) {
+        return { panel: memoryPanel({ enabled: false, model: 'n/a', dimensions: 0, total: 0, byKind: [], recent: [] }) };
+      }
+      const stats = await client.runtime.memory.stats({ guildId });
+      const recent = await client.runtime.memory.recent({ guildId, limit: 5 });
+      return {
+        panel: memoryPanel({
+          enabled: client.runtime.memory.enabled,
+          model: client.runtime.config.embedModel,
+          dimensions: client.runtime.config.embedDimensions,
+          total: stats.total,
+          byKind: stats.byKind,
+          recent,
+        }),
+      };
+    }
+    default:
+      return { error: `Unknown section: ${section}` };
+  }
+}
+
 export default {
   data: new SlashCommandBuilder()
     .setName('admin')
-    .setDescription('Loop owner console: health, budget, approvals, policies, memory.')
+    .setDescription('Console administrativo do dono: saúde, orçamento, aprovações, políticas e memória.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand((s) => s.setName('health').setDescription('System health, model health, memory status.'))
-    .addSubcommand((s) => s.setName('budget').setDescription('Agent spend vs budget and reservations.'))
-    .addSubcommand((s) => s.setName('approvals').setDescription('Proposals awaiting owner decision.'))
-    .addSubcommand((s) => s.setName('policies').setDescription('Per-domain autonomy policies.'))
-    .addSubcommand((s) => s.setName('memory').setDescription('Semantic memory (RAG) status and recent rows.')),
+    .addSubcommand((s) => s.setName('health').setDescription('Diagnóstico de integridade, modelos de IA e banco de dados.'))
+    .addSubcommand((s) => s.setName('budget').setDescription('Consumo e orçamento de autonomia do agente.'))
+    .addSubcommand((s) => s.setName('approvals').setDescription('Propostas de tarefas autônomas pendentes de aprovação.'))
+    .addSubcommand((s) => s.setName('policies').setDescription('Políticas de autonomia e limites de operação.'))
+    .addSubcommand((s) => s.setName('memory').setDescription('Memória semântica RAG e vetores gravados.')),
+
   async execute(interaction, client) {
     if (!interaction.inGuild() || interaction.guild.ownerId !== interaction.user.id) {
-      return interaction.reply({ content: 'Only the server owner can open the Loop console.', ephemeral: true });
+      return interaction.reply({ content: 'Apenas o dono do servidor pode abrir o console administrativo.', ephemeral: true });
     }
     const section = interaction.options.getSubcommand(true);
     await interaction.deferReply({ ephemeral: true });
     const view = await renderOwnerView(client, interaction.guildId, section);
-    if (view.error) return interaction.editReply({ content: view.error, ephemeral: true });
-    await interaction.editReply(view.panel);
+    if (view.error) return interaction.editReply({ content: view.error });
+    return interaction.editReply(view.panel);
   },
 };
-
-/** Rebuild an owner panel. Shared with `adm:refresh` button routing. */
-export async function renderOwnerView(client, guildId, section) {
-  const runtime = client.runtime;
-  try {
-    switch (section) {
-      case 'health': {
-        const memory = await runtime.memory.stats().catch(() => ({ enabled: false, model: 'n/a', dimensions: 0, total: 0, byKind: [] }));
-        return { panel: healthPanel({ database: runtime.state.database, redis: runtime.state.redis, memory, models: client.runtime.agent?.router?.snapshot?.() ?? {}, observedAt: new Date().toISOString() }) };
-      }
-      case 'budget': {
-        const router = client.runtime.agent?.router ?? { spent: 0, budgetUsd: 0 };
-        const usage = await runtime.db.query('SELECT capability, SUM(cost_usd)::float AS cost FROM model_usage GROUP BY capability ORDER BY cost DESC').catch(() => ({ rows: [] }));
-        const reservations = await runtime.db.query('SELECT domain, amount, status, guild_discord_id, created_at FROM budget_reservations ORDER BY created_at DESC LIMIT 10').catch(() => ({ rows: [] }));
-        return { panel: budgetPanel({ spent: router.spent ?? 0, limit: router.budgetUsd ?? 0, byCapability: usage.rows.map((r) => [r.capability, r.cost]), reservations: reservations.rows, periodStart: new Date().toISOString().slice(0, 10) }) };
-      }
-      case 'approvals': {
-        const { rows } = await runtime.db.query(`SELECT id, goal, domain, risk, status, created_at FROM proposals WHERE guild_discord_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 10`, [guildId]).catch(() => ({ rows: [] }));
-        return { panel: approvalsPanel(rows) };
-      }
-      case 'policies': {
-        const { rows } = await runtime.db.query(`SELECT p.domain, p.level, b.limit_amount AS budget FROM autonomy_policies p LEFT JOIN budgets b ON b.guild_id=p.guild_id AND b.domain=p.domain AND b.resets_at > now() WHERE p.guild_id=(SELECT id FROM guilds WHERE discord_id=$1) ORDER BY p.domain`, [guildId]).catch(() => ({ rows: [] }));
-        return { panel: policiesPanel(rows) };
-      }
-      case 'memory': {
-        const stats = await runtime.memory.stats().catch(() => ({ enabled: false, model: 'n/a', dimensions: 0, total: 0, byKind: [] }));
-        const recent = await runtime.memory.recent({ guildId, limit: 6 }).catch(() => []);
-        return { panel: memoryPanel({ ...stats, recent }) };
-      }
-      default:
-        return { error: 'Unknown console section.' };
-    }
-  } catch (error) {
-    client.logger.error({ err: error, section, correlationId: correlationId() }, 'owner console render failed');
-    return { error: `Console render failed: ${error.message}` };
-  }
-}

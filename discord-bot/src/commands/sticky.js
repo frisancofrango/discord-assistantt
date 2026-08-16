@@ -1,85 +1,41 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { panel, notice, V2 } from '../ui/theme.js';
-import { actorContext } from '../native/core.js';
+import { panel, V2 } from '../ui/theme.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('sticky')
-    .setDescription('Persistent sticky channel messages pinned to the bottom of chat.')
+    .setDescription('Fixa mensagens automaticamente no rodapé do chat.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-    .addSubcommand((s) =>
-      s
-        .setName('set')
-        .setDescription('Create or update a sticky message for a channel.')
-        .addChannelOption((o) =>
-          o.setName('channel').setDescription('Target channel').setRequired(true)
-        )
-        .addStringOption((o) =>
-          o.setName('title').setDescription('Sticky headline / title').setRequired(true)
-        )
-        .addStringOption((o) =>
-          o.setName('message').setDescription('Sticky content body').setRequired(true)
-        )
+    .addSubcommand(sc =>
+      sc.setName('definir')
+        .setDescription('Define uma mensagem fixa flutuante para este canal.')
+        .addStringOption(o => o.setName('mensagem').setDescription('Conteúdo da mensagem fixa').setRequired(true))
     )
-    .addSubcommand((s) =>
-      s
-        .setName('clear')
-        .setDescription('Remove the sticky message from a channel.')
-        .addChannelOption((o) =>
-          o.setName('channel').setDescription('Target channel').setRequired(true)
-        )
-    ),
+    .addSubcommand(sc => sc.setName('remover').setDescription('Remove a mensagem fixa deste canal.')),
 
   async execute(interaction, client) {
-    const sticky = client.runtime?.native?.sticky;
-    if (!sticky) {
-      return interaction.reply({ content: 'Sticky service is unavailable.', ephemeral: true });
-    }
+    const native = client.runtime?.native;
+    if (!native) return interaction.reply({ content: 'Sistema de sticky indisponível.', ephemeral: true });
 
     const sub = interaction.options.getSubcommand();
-    const ctx = actorContext(interaction);
+    const ctx = { actorId: interaction.user.id, guildId: interaction.guildId };
 
-    if (sub === 'set') {
-      const channel = interaction.options.getChannel('channel', true);
-      const title = interaction.options.getString('title', true);
-      const content = interaction.options.getString('message', true);
+    if (sub === 'definir') {
+      const msg = interaction.options.getString('mensagem');
+      await native.sticky.setSticky(interaction.guildId, interaction.channelId, msg, ctx);
 
-      try {
-        await sticky.setSticky(interaction.guildId, channel.id, title, content, ctx);
-        return interaction.reply({
-          flags: V2,
-          ephemeral: true,
-          components: [
-            notice({
-              title: 'STICKY MESSAGE ACTIVE',
-              body: `Pinned sticky notice to <#${channel.id}>:\n\n**${title}**\n${content}`,
-            }),
-          ],
-        });
-      } catch (err) {
-        return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
-      }
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [panel({ title: 'MENSAGEM FIXADA', body: 'Mensagem persistente configurada para este canal com sucesso.' })],
+      });
     }
 
-    if (sub === 'clear') {
-      const channel = interaction.options.getChannel('channel', true);
-      try {
-        const cleared = await sticky.clearSticky(channel.id, ctx);
-        return interaction.reply({
-          flags: V2,
-          ephemeral: true,
-          components: [
-            notice({
-              title: cleared ? 'STICKY CLEARED' : 'NO STICKY FOUND',
-              body: cleared
-                ? `Removed sticky message from <#${channel.id}>.`
-                : `No active sticky message was found in <#${channel.id}>.`,
-            }),
-          ],
-        });
-      } catch (err) {
-        return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
-      }
-    }
+    await native.sticky.clearSticky(interaction.channelId);
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [panel({ title: 'STICKY REMOVIDO', body: 'Mensagem fixa removida deste canal.' })],
+    });
   },
 };

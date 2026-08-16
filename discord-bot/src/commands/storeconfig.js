@@ -1,84 +1,47 @@
-import { PermissionFlagsBits, SlashCommandBuilder, ChannelType } from 'discord.js';
-import { panel, notice, V2 } from '../ui/theme.js';
-import { actorContext } from '../native/core.js';
+import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { panel, V2 } from '../ui/theme.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('storeconfig')
-    .setDescription('Configure Brazilian Discord Commerce channels, private cart category, and reviews broadcast.')
+    .setDescription('Configura canais da loja, categoria de carrinhos privados e moeda.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addChannelOption((o) =>
-      o
-        .setName('cart_category')
-        .setDescription('Categoria para criação de carrinhos privados (🛒・carrinho-user)')
-        .addChannelTypes(ChannelType.GuildCategory)
+    .addChannelOption(o => o.setName('categoria_carrinhos').setDescription('Categoria onde os canais privados de carrinho serão criados').addChannelTypes(ChannelType.GuildCategory).setRequired(false))
+    .addChannelOption(o => o.setName('canal_avaliacoes').setDescription('Canal de logs públicos de compras e feedbacks').addChannelTypes(ChannelType.GuildText).setRequired(false))
+    .addStringOption(o =>
+      o.setName('moeda')
+        .setDescription('Moeda padrão das transações')
         .setRequired(false)
-    )
-    .addChannelOption((o) =>
-      o
-        .setName('reviews_channel')
-        .setDescription('Canal público para broadcast de avaliações (⭐・avaliações)')
-        .addChannelTypes(ChannelType.GuildText)
-        .setRequired(false)
-    )
-    .addChannelOption((o) =>
-      o
-        .setName('logs_channel')
-        .setDescription('Canal privado para logs de vendas e chaves PIX')
-        .addChannelTypes(ChannelType.GuildText)
-        .setRequired(false)
-    )
-    .addStringOption((o) =>
-      o
-        .setName('currency')
-        .setDescription('Moeda padrão da loja')
-        .addChoices({ name: '🇧🇷 Real Brasileiro (BRL)', value: 'BRL' }, { name: '🇺🇸 Dólar Americano (USD)', value: 'USD' })
-        .setRequired(false)
+        .addChoices({ name: 'Real Brasileiro (BRL)', value: 'BRL' }, { name: 'Dólar Americano (USD)', value: 'USD' })
     ),
 
   async execute(interaction, client) {
-    const cartSvc = client.runtime?.native?.cartChannel;
-    if (!cartSvc) {
-      return interaction.reply({ content: 'Cart Channel Service is unavailable.', ephemeral: true });
-    }
+    const native = client.runtime?.native;
+    if (!native) return interaction.reply({ content: 'Sistema de configuração indisponível.', ephemeral: true });
 
-    const ctx = actorContext(interaction);
-    const cartCat = interaction.options.getChannel('cart_category');
-    const revCh = interaction.options.getChannel('reviews_channel');
-    const logsCh = interaction.options.getChannel('logs_channel');
-    const cur = interaction.options.getString('currency') || 'BRL';
+    const cartCat = interaction.options.getChannel('categoria_carrinhos');
+    const revCh = interaction.options.getChannel('canal_avaliacoes');
+    const currency = interaction.options.getString('moeda');
+    const ctx = { actorId: interaction.user.id, guildId: interaction.guildId };
 
-    try {
-      const saved = await cartSvc.setCommerceChannels(
-        interaction.guildId,
-        {
-          cartCategoryId: cartCat?.id,
-          reviewsChannelId: revCh?.id,
-          logsChannelId: logsCh?.id,
-          currency: cur,
-          language: 'pt_BR',
-        },
-        ctx
-      );
+    const updated = await native.cartChannel.setCommerceChannels(interaction.guildId, {
+      cartCategoryId: cartCat ? cartCat.id : undefined,
+      reviewsChannelId: revCh ? revCh.id : undefined,
+      currency: currency || undefined,
+    }, ctx);
 
-      return interaction.reply({
-        flags: V2,
-        ephemeral: true,
-        components: [
-          panel({
-            title: '🇧🇷 CONFIGURAÇÕES DA LOJA ATUALIZADAS',
-            body:
-              `> **Categoria de Carrinhos:** ${saved.cart_category_id ? `<#${saved.cart_category_id}>` : '*Não definida*'}\n` +
-              `> **Canal de Avaliações:** ${saved.reviews_channel_id ? `<#${saved.reviews_channel_id}>` : '*Não definido*'}\n` +
-              `> **Canal de Logs:** ${saved.logs_channel_id ? `<#${saved.logs_channel_id}>` : '*Não definido*'}\n` +
-              `> **Moeda Principal:** **\`${saved.currency}\`**\n` +
-              `> **Idioma:** \`${saved.language}\``,
-            footer: 'Loop Commerce Suite · Padrão de Excelência',
-          }),
-        ],
-      });
-    } catch (err) {
-      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERRO', body: err.message })] });
-    }
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [
+        panel({
+          title: 'CONFIGURAÇÕES DA LOJA ATUALIZADAS',
+          body:
+            `> **Categoria de Carrinhos:** ${updated.cart_category_id ? `<#${updated.cart_category_id}>` : '*Direto no Servidor*'}\n` +
+            `> **Canal de Avaliações:** ${updated.reviews_channel_id ? `<#${updated.reviews_channel_id}>` : '*Desativado*'}\n` +
+            `> **Moeda Oficial:** **\`${updated.currency || 'BRL'}\`**`,
+        }),
+      ],
+    });
   },
 };

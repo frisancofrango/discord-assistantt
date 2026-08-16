@@ -1,106 +1,58 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { panel, notice, V2, button } from '../ui/theme.js';
-import { actorContext } from '../native/core.js';
+import { panel, V2 } from '../ui/theme.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('automod')
-    .setDescription('Intelligent real-time anti-phishing, invite link, and spam protection.')
+    .setDescription('Configura regras de proteção contra spam, links não autorizados e convites.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addSubcommand((s) =>
-      s.setName('rules').setDescription('Inspect active AutoMod filters and actions.')
-    )
-    .addSubcommand((s) =>
-      s
-        .setName('set')
-        .setDescription('Configure an AutoMod rule filter.')
-        .addStringOption((o) =>
-          o
-            .setName('rule')
-            .setDescription('Rule filter type')
+    .addSubcommand(sc =>
+      sc.setName('regra')
+        .setDescription('Ativa ou ajusta uma regra do AutoMod.')
+        .addStringOption(o =>
+          o.setName('tipo')
+            .setDescription('Tipo de proteção')
             .setRequired(true)
             .addChoices(
-              { name: 'Anti-Phishing & Scam URLs', value: 'anti_phishing' },
-              { name: 'Anti-Discord Invites', value: 'anti_invites' },
-              { name: 'Mass Mentions (>=5)', value: 'mass_mentions' },
-              { name: 'Mass Caps Screaming', value: 'mass_caps' }
+              { name: 'Anti-Spam / Flood', value: 'anti_spam' },
+              { name: 'Bloqueio de Convites (Anti-Invite)', value: 'anti_invite' },
+              { name: 'Bloqueio de Links (Anti-Link)', value: 'anti_link' },
+              { name: 'Anti-Caps Lock Excessivo', value: 'anti_caps' },
+              { name: 'Anti-Menções em Massa', value: 'anti_mass_mention' }
             )
         )
-        .addBooleanOption((o) =>
-          o.setName('enabled').setDescription('Enable or disable rule').setRequired(true)
-        )
-        .addStringOption((o) =>
-          o
-            .setName('action')
-            .setDescription('Enforcement action')
+        .addStringOption(o =>
+          o.setName('acao')
+            .setDescription('Ação punitiva a ser aplicada')
             .setRequired(true)
             .addChoices(
-              { name: 'Delete Message', value: 'delete' },
-              { name: 'Delete & Warn Member', value: 'delete_and_warn' },
-              { name: 'Delete & 10-Minute Timeout', value: 'delete_and_timeout' },
-              { name: 'Delete & Server Kick', value: 'delete_and_kick' }
+              { name: 'Apenas Deletar Mensagem', value: 'delete' },
+              { name: 'Deletar e Aplicar Castigo (Timeout 10m)', value: 'timeout' },
+              { name: 'Deletar e Expulsar (Kick)', value: 'kick' }
             )
         )
     ),
 
   async execute(interaction, client) {
-    const automod = client.runtime?.native?.automod;
-    if (!automod) {
-      return interaction.reply({ content: 'AutoMod system is unavailable.', ephemeral: true });
-    }
+    const native = client.runtime?.native;
+    if (!native) return interaction.reply({ content: 'AutoMod indisponível.', ephemeral: true });
 
-    const sub = interaction.options.getSubcommand();
-    const ctx = actorContext(interaction);
+    const type = interaction.options.getString('tipo');
+    const action = interaction.options.getString('acao');
+    const ctx = { actorId: interaction.user.id, guildId: interaction.guildId };
 
-    if (sub === 'rules') {
-      const rules = await automod.getRules(interaction.guildId);
-      const defaultRules = [
-        { rule_type: 'anti_phishing', enabled: true, action: 'delete_and_warn' },
-        { rule_type: 'anti_invites', enabled: true, action: 'delete_and_warn' },
-        { rule_type: 'mass_mentions', enabled: true, action: 'delete_and_timeout' },
-        { rule_type: 'mass_caps', enabled: true, action: 'delete' },
-      ];
+    await native.automod.setRule(interaction.guildId, { ruleType: type, enabled: true, action }, ctx);
 
-      const activeRules = rules.length ? rules : defaultRules;
-      const lines = activeRules.map((r) => {
-        const status = r.enabled ? '🟢 **ACTIVE**' : '🔴 **DISABLED**';
-        return `> **\`${r.rule_type.toUpperCase()}\`** — ${status} (Action: \`${r.action}\`)`;
-      }).join('\n');
-
-      return interaction.reply({
-        flags: V2,
-        ephemeral: true,
-        components: [
-          panel({
-            title: 'SHIELD AUTOMOD RULES',
-            subtitle: 'Real-time proactive message sanitization',
-            body: lines,
-            buttons: [button.primary('panel:tab:security', '🛡️ Security Fortress')],
-          }),
-        ],
-      });
-    }
-
-    if (sub === 'set') {
-      const rule = interaction.options.getString('rule', true);
-      const enabled = interaction.options.getBoolean('enabled', true);
-      const action = interaction.options.getString('action', true);
-
-      try {
-        const updated = await automod.setRule(interaction.guildId, rule, { enabled, action }, ctx);
-        return interaction.reply({
-          flags: V2,
-          ephemeral: true,
-          components: [
-            notice({
-              title: 'AUTOMOD RULE UPDATED',
-              body: `Rule **\`${updated.rule_type.toUpperCase()}\`** set to **${updated.enabled ? 'ENABLED' : 'DISABLED'}** with action \`${updated.action}\`.`,
-            }),
-          ],
-        });
-      } catch (err) {
-        return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
-      }
-    }
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [
+        panel({
+          title: 'REGRA AUTOMOD ATIVADA',
+          body: `Regra **\`${type}\`** configurada com sucesso.
+Ação ao detectar infração: **\`${action.toUpperCase()}\`**.`,
+        }),
+      ],
+    });
   },
 };
