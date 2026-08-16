@@ -39,24 +39,6 @@ const deletedSassLines = [
   "guess that message is living in the void now.",
 ];
 
-// Zero-model instant handling for trivial traffic: greeting text or a single
-// reaction instead of a 15-30s farm round-trip.
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const instantRules = [
-  { re: /^(hello|hi|hey|yo|sup|wassup|hola|heya|ello|good morning|good night)\b[!. ]*$/i, react: null, reply: (n) => `hey ${n} 👋` },
-  { re: /^(oi|ola|olá|opa|eai|e aí|fala|salve|bom dia|boa tarde|boa noite)\b[!. ]*$/i, react: null, reply: (n) => `opa ${n} 👋` },
-  { re: /^(tudo bem|como vai|beleza|suave|tranquilo|td bem)\??[!. ]*$/i, react: null, reply: () => pick([`tudo suave por aqui, e com você? 😎`, `tranquilo demais. precisando de algo?`, `tudo certo, na atividade!`, `tranquilão, só na paz. e aí?`]) },
-  { re: /^(valeu|vlw|obrigado|obg|agradece|tmj|tamo junto)\b[!. ]*$/i, react: '💚' },
-  { re: /^(quanto custa|qual o valor|preco|preço|catalogo|catálogo|loja)\b[!. ]*$/i, react: null, reply: () => `dá uma olhada no catálogo oficial usando \`/sales loja\` ou \`/product listar\` 🛍️` },
-  { re: /^(como comprar|como pagar|pix|forma de pagamento)\b[!. ]*$/i, react: null, reply: () => `você pode abrir um carrinho direto com \`/cart\` ou pagar via PIX instantâneo 🇧🇷` },
-  { re: /^(?:how(?:'?s| is| are| r)(?: u| you| ya| it)(?: doin| doing| going)?|how (?:u|you|ya|it)(?: doin| doing| going)?|hows (?:it|life)(?: going)?)\b[!. ]*$/i, react: null, reply: () => pick([`doin good, just vibing. you? 😎`, `hangin in there, you?`, `chillin, what's up?`, `busy bein awesome. how bout you?`]) },
-  { re: /^(?:that'?s|that) (?:good|great|awesome|sweet|perfect|nice|cool|dope|fire|lit)\b[!. ]*$/i, react: null, reply: () => pick([`glad to hear it 😎`, `nice, good stuff`, `told you it would be`, `as expected of you`]) },
-  { re: /^(?:nice|cool|sweet|awesome|dope|fire|lit|bet|fr|facts|valid)\b[!. ]*$/i, react: '😎' },
-  { re: /^(?:lol|lmao|lmfao|rofl|haha|hehe)\b[!. ]*$/i, react: '😂' },
-  { re: /^(bruh|jfc|wtf|wth|omg|ugh|damn|oof|yikes|ouch)\b[!. ]*$/i, react: '😅' },
-  { re: /^(what|huh|uh|wut)\??[!. ]*$/i, react: '🤔' },
-];
-
 function splitParts(text) {
   const segments = String(text ?? '').split(/\[PART\s*\d+\]\s*/);
   const parts = [];
@@ -559,18 +541,6 @@ const actor = { id: message.author.id, guildId: message.guildId, authenticated: 
     }
 
     const botId = client.user.id;
-
-    const instantScope = scopeOf(message);
-    const instant = instantRules.find((r) => !isEdit && !message.author?.bot && message.content.trim().length <= 14 && r.re.test(message.content.trim()));
-    if (instant) {
-      if (instant.react) { try { await message.react(instant.react); } catch { /* noop */ } }
-      if (instant.reply) {
-        const displayName = message.member?.displayName ?? message.author.username;
-        await message.reply({ content: instant.reply(displayName), allowedMentions: { parse: [], repliedUser: false } }).catch(() => {});
-      }
-      engagement.recordResponse(instantScope, message.id);
-      return;
-    }
 
     // Real-time AutoMod Protection
     if (message.guildId && !message.author?.bot && runtime.native?.automod) {
