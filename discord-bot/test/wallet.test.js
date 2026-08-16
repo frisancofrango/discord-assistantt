@@ -165,16 +165,16 @@ test('WalletService: withdraw debits balance and fails when funds are insufficie
   const db = createMockDb();
   const svc = new WalletService({ db });
 
-  await svc.deposit({ guildId: 'g1', memberId: 'u1', amountMinor: 5000, currency: 'USD' }, mockCtx);
+  await svc.deposit({ guildId: 'g1', memberId: 'u1', amountMinor: 5000, currency: 'USD', idempotencyKey: 'test_dep_w1' }, mockCtx);
 
   const withdrawResult = await svc.withdraw(
-    { guildId: 'g1', memberId: 'u1', amountMinor: 2000, currency: 'USD', destination: 'paypal' },
+    { guildId: 'g1', memberId: 'u1', amountMinor: 2000, currency: 'USD', destination: 'paypal', idempotencyKey: 'test_wd_ok' },
     mockCtx
   );
   assert.equal(withdrawResult.balanceMinor, 3000);
 
   await assert.rejects(
-    () => svc.withdraw({ guildId: 'g1', memberId: 'u1', amountMinor: 4000, currency: 'USD' }, mockCtx),
+    () => svc.withdraw({ guildId: 'g1', memberId: 'u1', amountMinor: 4000, currency: 'USD', idempotencyKey: 'test_wd_fail' }, mockCtx),
     (err) => err.code === 'insufficient_funds'
   );
 });

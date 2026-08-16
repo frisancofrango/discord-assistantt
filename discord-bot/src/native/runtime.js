@@ -6,8 +6,11 @@ import { ModerationService } from './moderation.js';
 import { MarketingService } from './marketing.js';
 import { WalletService } from './wallet.js';
 import { RobloxService } from './roblox.js';
+import { SettingsService } from './settings.js';
+import { CouponService } from './coupons.js';
+import { AIStudioService } from './ai-studio.js';
 
-export function createNativeRuntime({ db, queue, tools, config, logger, client, paymentAdapters = {} }) {
+export function createNativeRuntime({ db, queue, tools, config, logger, client, memory, paymentAdapters = {} }) {
   const analytics = new AnalyticsService({ db, retentionDays: config.native?.analyticsRetentionDays ?? 30 });
   const common = { db, queue, tools, analytics };
   const tickets = new TicketService({ ...common, config: config.native?.tickets ?? {} });
@@ -17,6 +20,9 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
   const marketing = new MarketingService({ ...common, config: config.native?.marketing ?? {} });
   const wallet = new WalletService({ db, analytics });
   const roblox = new RobloxService({ db });
+  const settings = new SettingsService({ db, logger });
+  const coupons = new CouponService({ db, logger });
+  const aiStudio = new AIStudioService({ db, memory, settings, logger });
   let worker;
 
   function start() {
@@ -50,6 +56,9 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
     marketing,
     wallet,
     roblox,
+    settings,
+    coupons,
+    aiStudio,
     start,
     close: async () => worker?.close(),
   };

@@ -15,11 +15,13 @@ import {
   walletPanel,
   checkoutPanel,
   orderReceiptPanel,
+  robloxCalculatorPanel,
+  operatorDashboardPanel,
   formatMoney,
   THEME,
 } from '../ui/theme.js';
 import { consume } from '../lib/pending.js';
-import { logAction, fail } from '../lib/moderation.js';
+import { logAction } from '../lib/moderation.js';
 import { withCorrelation, correlationId } from '../foundation/logger.js';
 import { evaluatePolicy } from '../foundation/policy.js';
 import { hashApprovalToken } from '../autonomy/proposal.js';
@@ -33,6 +35,8 @@ export default {
       try {
         if (interaction.isChatInputCommand()) return handleCommand(interaction, client);
         if (interaction.isButton()) return handleButton(interaction, client);
+        if (interaction.isStringSelectMenu()) return handleStringSelect(interaction, client);
+        if (interaction.isUserSelectMenu()) return handleUserSelect(interaction, client);
         if (interaction.isModalSubmit()) return handleModal(interaction, client);
       } catch (err) {
         client.logger?.error({ err, interactionId: interaction.id }, 'interaction failed');
@@ -54,6 +58,109 @@ async function handleCommand(interaction, client) {
   await command.execute(interaction, client);
 }
 
+async function handleStringSelect(interaction, client) {
+  const customId = interaction.customId;
+  const value = interaction.values[0];
+  const native = client.runtime?.native;
+  const ctx = actorContext(interaction);
+
+  // Control Panel Tab Navigation
+  if (customId === 'panel:nav') {
+    const tab = value;
+    const settings = await native.settings.getSettings(interaction.guildId);
+    let data = {};
+
+    if (tab === 'commerce') {
+      data.products = await native.commerce.listProducts(interaction.guildId);
+      data.coupons = await native.coupons.listCoupons(interaction.guildId);
+    } else if (tab === 'ai') {
+      const nodes = await native.aiStudio.listKnowledgeNodes(interaction.guildId);
+      data.knowledgeCount = nodes.length;
+    } else if (tab === 'tickets') {
+      data.openTickets = (await client.runtime.db.query(`SELECT count(*)::int FROM tickets WHERE guild_id = $1 AND status != 'closed'`, [interaction.guildId])).rows[0]?.count || 0;
+      data.cannedCount = (await client.runtime.db.query(`SELECT count(*)::int FROM ticket_canned_responses WHERE guild_id = $1`, [interaction.guildId])).rows[0]?.count || 0;
+    } else if (tab === 'wallet') {
+      const stats = (await client.runtime.db.query(`SELECT count(*)::int as count, sum(balance_minor)::bigint as total FROM wallets WHERE guild_id = $1`, [interaction.guildId])).rows[0];
+      data.activeWallets = stats?.count || 0;
+      data.totalBalanceMinor = Number(stats?.total || 0);
+    } else if (tab === 'roblox') {
+      data.linkedCount = (await client.runtime.db.query(`SELECT count(*)::int FROM roblox_links WHERE guild_id = $1`, [interaction.guildId])).rows[0]?.count || 0;
+    }
+
+    return interaction.update({
+      flags: V2,
+      components: [operatorDashboardPanel({ tab, guildId: interaction.guildId, data, settings })],
+    });
+  }
+
+  // AI Persona Switcher
+  if (customId === 'panel:ai:persona_select') {
+    const updated = await native.aiStudio.setPersona(interaction.guildId, value, null, ctx);
+    const settings = await native.settings.getSettings(interaction.guildId);
+    const nodes = await native.aiStudio.listKnowledgeNodes(interaction.guildId);
+
+    return interaction.update({
+      flags: V2,
+      components: [
+        operatorDashboardPanel({
+          tab: 'ai',
+          guildId: interaction.guildId,
+          settings,
+          data: { knowledgeCount: nodes.length },
+        }),
+      ],
+    });
+  }
+
+  // Security Shield Level Switcher
+  if (customId === 'panel:security:shield_select') {
+    await native.settings.updateSettings(interaction.guildId, { antiRaidLevel: value }, ctx);
+    const settings = await native.settings.getSettings(interaction.guildId);
+
+    return interaction.update({
+      flags: V2,
+      components: [
+        operatorDashboardPanel({
+          tab: 'security',
+          guildId: interaction.guildId,
+          settings,
+          data: { quarantinedCount: 0 },
+        }),
+      ],
+    });
+  }
+}
+
+async function handleUserSelect(interaction, client) {
+  const customId = interaction.customId;
+  const targetUserId = interaction.values[0];
+  const native = client.runtime?.native;
+
+  if (customId === 'panel:wallet_inspect_user') {
+    const wallet = await native.wallet.getWallet(interaction.guildId, targetUserId, 'USD');
+    const txs = await native.wallet.history(interaction.guildId, targetUserId, 5);
+
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [
+        panel({
+          title: 'MEMBER WALLET INSPECTION',
+          subtitle: `User: <@${targetUserId}> (\`${targetUserId}\`)`,
+          body:
+            `> **Available Balance:** ${formatMoney(wallet.availableMinor, wallet.currency)}\n` +
+            `> **Locked Balance:** ${formatMoney(wallet.lockedMinor, wallet.currency)}\n` +
+            `> **Recent Transactions:** ${txs.length} recorded`,
+          buttons: [
+            button.primary(`panel:wallet:grant_target:${targetUserId}`, '🎁 Grant Balance Bonus'),
+            button.danger(`panel:wallet:freeze:${targetUserId}`, '❄️ Freeze Wallet'),
+          ],
+        }),
+      ],
+    });
+  }
+}
+
 async function handleButton(interaction, client) {
   const parts = interaction.customId.split(':');
   const action = parts[0];
@@ -68,6 +175,197 @@ async function handleButton(interaction, client) {
 
   const native = client.runtime?.native;
   const ctx = actorContext(interaction);
+
+  // Control Panel Navigation via Buttons
+  if (action === 'panel') {
+    if (arg1 === 'tab') {
+      const tab = arg2 || 'commerce';
+      const settings = await native.settings.getSettings(interaction.guildId);
+      const products = await native.commerce.listProducts(interaction.guildId);
+      const coupons = await native.coupons.listCoupons(interaction.guildId);
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          operatorDashboardPanel({
+            tab,
+            guildId: interaction.guildId,
+            settings,
+            data: { products, coupons },
+          }),
+        ],
+      });
+    }
+
+    if (arg1 === 'product' && arg2 === 'add_modal') {
+      const sku = new TextInputBuilder().setCustomId('sku').setLabel('Product SKU (e.g. vip_pass)').setStyle(TextInputStyle.Short).setRequired(true);
+      const name = new TextInputBuilder().setCustomId('name').setLabel('Product Name (e.g. VIP Pass)').setStyle(TextInputStyle.Short).setRequired(true);
+      const price = new TextInputBuilder().setCustomId('price').setLabel('Price in USD (e.g. 9.99)').setStyle(TextInputStyle.Short).setRequired(true);
+      const stock = new TextInputBuilder().setCustomId('stock').setLabel('Stock count (leave blank for unlimited)').setStyle(TextInputStyle.Short).setRequired(false);
+      const desc = new TextInputBuilder().setCustomId('desc').setLabel('Product Description').setStyle(TextInputStyle.Paragraph).setRequired(false);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:add_product')
+          .setTitle('Create Catalog Product')
+          .addComponents(
+            new ActionRowBuilder().addComponents(sku),
+            new ActionRowBuilder().addComponents(name),
+            new ActionRowBuilder().addComponents(price),
+            new ActionRowBuilder().addComponents(stock),
+            new ActionRowBuilder().addComponents(desc)
+          )
+      );
+    }
+
+    if (arg1 === 'product' && arg2 === 'manage_stock') {
+      const sku = new TextInputBuilder().setCustomId('sku').setLabel('Product SKU or Variant ID').setStyle(TextInputStyle.Short).setRequired(true);
+      const delta = new TextInputBuilder().setCustomId('delta').setLabel('Stock Adjustment (e.g. +10 or -5)').setStyle(TextInputStyle.Short).setRequired(true);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:manage_stock')
+          .setTitle('Adjust Inventory Stock')
+          .addComponents(
+            new ActionRowBuilder().addComponents(sku),
+            new ActionRowBuilder().addComponents(delta)
+          )
+      );
+    }
+
+    if (arg1 === 'coupon' && arg2 === 'create_modal') {
+      const code = new TextInputBuilder().setCustomId('code').setLabel('Promo Code (e.g. SAVE20)').setStyle(TextInputStyle.Short).setRequired(true);
+      const discount = new TextInputBuilder().setCustomId('discount').setLabel('Discount % (1-100) or USD amount (e.g. 5.00)').setStyle(TextInputStyle.Short).setRequired(true);
+      const minOrder = new TextInputBuilder().setCustomId('min_order').setLabel('Min Order (USD, optional)').setStyle(TextInputStyle.Short).setRequired(false);
+      const maxUses = new TextInputBuilder().setCustomId('max_uses').setLabel('Max Uses (optional)').setStyle(TextInputStyle.Short).setRequired(false);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:create_coupon')
+          .setTitle('Create Promotional Coupon')
+          .addComponents(
+            new ActionRowBuilder().addComponents(code),
+            new ActionRowBuilder().addComponents(discount),
+            new ActionRowBuilder().addComponents(minOrder),
+            new ActionRowBuilder().addComponents(maxUses)
+          )
+      );
+    }
+
+    if (arg1 === 'wallet' && (arg2 === 'grant_bonus' || arg2 === 'grant_target')) {
+      const targetId = arg3 || '';
+      const user = new TextInputBuilder().setCustomId('user_id').setLabel('Target Member User ID').setValue(targetId).setStyle(TextInputStyle.Short).setRequired(true);
+      const amount = new TextInputBuilder().setCustomId('amount').setLabel('Bonus Amount (USD, e.g. 10.00)').setStyle(TextInputStyle.Short).setRequired(true);
+      const reason = new TextInputBuilder().setCustomId('reason').setLabel('Reason / Reference').setStyle(TextInputStyle.Short).setRequired(false);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:grant_wallet_bonus')
+          .setTitle('Grant Wallet Balance Bonus')
+          .addComponents(
+            new ActionRowBuilder().addComponents(user),
+            new ActionRowBuilder().addComponents(amount),
+            new ActionRowBuilder().addComponents(reason)
+          )
+      );
+    }
+
+    if (arg1 === 'ai' && arg2 === 'ingest_modal') {
+      const title = new TextInputBuilder().setCustomId('title').setLabel('Knowledge Topic / Title').setStyle(TextInputStyle.Short).setRequired(true);
+      const category = new TextInputBuilder().setCustomId('category').setLabel('Category (e.g. rules, pricing, faq)').setValue('faq').setStyle(TextInputStyle.Short).setRequired(true);
+      const content = new TextInputBuilder().setCustomId('content').setLabel('Documentation / Information').setStyle(TextInputStyle.Paragraph).setRequired(true);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:ai_ingest')
+          .setTitle('Ingest Knowledge into Vector Memory')
+          .addComponents(
+            new ActionRowBuilder().addComponents(title),
+            new ActionRowBuilder().addComponents(category),
+            new ActionRowBuilder().addComponents(content)
+          )
+      );
+    }
+
+    if (arg1 === 'ai' && arg2 === 'sandbox_modal') {
+      const prompt = new TextInputBuilder().setCustomId('prompt').setLabel('Test Prompt for AI Simulation').setStyle(TextInputStyle.Paragraph).setRequired(true);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:ai_sandbox')
+          .setTitle('Autonomous AI Prompt Sandbox')
+          .addComponents(new ActionRowBuilder().addComponents(prompt))
+      );
+    }
+
+    if (arg1 === 'ai' && arg2 === 'autonomy_toggle') {
+      const settings = await native.settings.getSettings(interaction.guildId);
+      const order = ['advisor', 'operator', 'autopilot'];
+      const nextIdx = (order.indexOf(settings.aiAutonomy) + 1) % order.length;
+      const nextMode = order[nextIdx];
+      await native.settings.updateSettings(interaction.guildId, { aiAutonomy: nextMode }, ctx);
+      const updatedSettings = await native.settings.getSettings(interaction.guildId);
+      const nodes = await native.aiStudio.listKnowledgeNodes(interaction.guildId);
+
+      return interaction.update({
+        flags: V2,
+        components: [
+          operatorDashboardPanel({
+            tab: 'ai',
+            guildId: interaction.guildId,
+            settings: updatedSettings,
+            data: { knowledgeCount: nodes.length },
+          }),
+        ],
+      });
+    }
+
+    if (arg1 === 'tickets' && arg2 === 'add_canned') {
+      const title = new TextInputBuilder().setCustomId('title').setLabel('Template Title (e.g. Payment Fix)').setStyle(TextInputStyle.Short).setRequired(true);
+      const content = new TextInputBuilder().setCustomId('content').setLabel('Template Message Body').setStyle(TextInputStyle.Paragraph).setRequired(true);
+      const category = new TextInputBuilder().setCustomId('category').setLabel('Category (e.g. billing, tech)').setValue('billing').setStyle(TextInputStyle.Short).setRequired(true);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:add_canned_response')
+          .setTitle('Create Canned Ticket Response')
+          .addComponents(
+            new ActionRowBuilder().addComponents(title),
+            new ActionRowBuilder().addComponents(category),
+            new ActionRowBuilder().addComponents(content)
+          )
+      );
+    }
+
+    if (arg1 === 'roblox' && arg2 === 'calc') {
+      if (arg3 === 'custom') {
+        const amt = new TextInputBuilder().setCustomId('target_robux').setLabel('Target Net Robux').setStyle(TextInputStyle.Short).setRequired(true);
+        return interaction.showModal(
+          new ModalBuilder()
+            .setCustomId('modal:roblox_custom_calc')
+            .setTitle('Roblox 70/30 Fee Calculator')
+            .addComponents(new ActionRowBuilder().addComponents(amt))
+        );
+      }
+
+      const netAmt = parseInt(arg3, 10) || 1000;
+      const calc = native.roblox.calculateFee(netAmt, true);
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          robloxCalculatorPanel({
+            netRobux: calc.targetNet,
+            grossPrice: calc.grossPrice,
+            feeAmount: calc.feeAmount,
+            effectiveNet: calc.effectiveNet,
+            isNet: true,
+          }),
+        ],
+      });
+    }
+  }
 
   // Storefront navigation
   if (action === 'store' && arg1 === 'view') {
@@ -152,7 +450,6 @@ async function handleButton(interaction, client) {
   if (action === 'buy') {
     const variantId = arg1;
     try {
-      // Add to cart and immediately open checkout prompt
       await native.commerce.addToCart(
         {
           variantId,
@@ -250,7 +547,6 @@ async function handleButton(interaction, client) {
           throw new Error(`Insufficient wallet balance: ${formatMoney(wallet.availableMinor, order.currency)} available, ${formatMoney(subtotal, order.currency)} required.`);
         }
 
-        // Debit wallet and fulfill order
         await native.wallet.withdraw(
           {
             guildId: interaction.guildId,
@@ -264,7 +560,6 @@ async function handleButton(interaction, client) {
         );
 
         const items = (await client.runtime.db.query(`SELECT * FROM order_items WHERE order_id = $1`, [order.id])).rows;
-        // Decrement variant stock
         for (const item of items) {
           await client.runtime.db.query(
             `UPDATE product_variants
@@ -276,7 +571,6 @@ async function handleButton(interaction, client) {
           );
         }
 
-        // Update order status
         await client.runtime.db.query(
           `UPDATE orders SET status = 'fulfilled', provider = 'wallet', provider_reference = $2, updated_at = now() WHERE id = $1`,
           [order.id, `wallet:${wallet.id}`]
@@ -573,6 +867,277 @@ async function handleModal(interaction, client) {
   const native = client.runtime?.native;
   const ctx = actorContext(interaction);
 
+  // Add Product Modal
+  if (customId === 'modal:add_product') {
+    const sku = interaction.fields.getTextInputValue('sku');
+    const name = interaction.fields.getTextInputValue('name');
+    const priceStr = interaction.fields.getTextInputValue('price');
+    const stockStr = interaction.fields.getTextInputValue('stock');
+    const desc = interaction.fields.getTextInputValue('desc');
+
+    const priceVal = parseFloat(priceStr.replace(/[^0-9.]/g, ''));
+    const priceMinor = Math.round(priceVal * 100);
+    const stockVal = stockStr ? parseInt(stockStr.replace(/[^0-9]/g, ''), 10) : null;
+
+    try {
+      const p = await native.commerce.upsertProduct(
+        {
+          sku,
+          name,
+          description: desc,
+          acceptableUse: 'Goods',
+          variants: [
+            {
+              sku: `${sku}_default`,
+              name: `${name} Standard`,
+              priceMinor,
+              currency: 'USD',
+              stock: stockVal,
+            },
+          ],
+        },
+        ctx
+      );
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: 'PRODUCT CREATED',
+            body: `Created product **${p.name}** (\`${p.sku}\`) priced at **${formatMoney(priceMinor, 'USD')}**.`,
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
+    }
+  }
+
+  // Manage Stock Modal
+  if (customId === 'modal:manage_stock') {
+    const sku = interaction.fields.getTextInputValue('sku');
+    const deltaStr = interaction.fields.getTextInputValue('delta');
+    const delta = parseInt(deltaStr, 10);
+
+    if (isNaN(delta)) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'INVALID DELTA', body: 'Please provide a valid stock number like +10 or -5.' })] });
+    }
+
+    try {
+      await client.runtime.db.query(
+        `UPDATE product_variants SET stock = GREATEST(0, stock + $1), updated_at = now() WHERE sku = $2 OR id = $2`,
+        [delta, sku]
+      );
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [notice({ title: 'STOCK UPDATED', body: `Adjusted inventory for \`${sku}\` by **${delta > 0 ? '+' : ''}${delta}**.` })],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
+    }
+  }
+
+  // Create Coupon Modal
+  if (customId === 'modal:create_coupon') {
+    const code = interaction.fields.getTextInputValue('code');
+    const discountStr = interaction.fields.getTextInputValue('discount');
+    const minOrderStr = interaction.fields.getTextInputValue('min_order');
+    const maxUsesStr = interaction.fields.getTextInputValue('max_uses');
+
+    let percent = null;
+    let amountMinor = null;
+    if (discountStr.includes('%')) {
+      percent = parseInt(discountStr.replace(/[^0-9]/g, ''), 10);
+    } else {
+      const val = parseFloat(discountStr.replace(/[^0-9.]/g, ''));
+      if (val > 0 && val <= 100 && !discountStr.includes('.')) percent = val;
+      else amountMinor = Math.round(val * 100);
+    }
+
+    const minOrderMinor = minOrderStr ? Math.round(parseFloat(minOrderStr.replace(/[^0-9.]/g, '')) * 100) : 0;
+    const maxUses = maxUsesStr ? parseInt(maxUsesStr.replace(/[^0-9]/g, ''), 10) : null;
+
+    try {
+      const c = await native.coupons.createCoupon(
+        {
+          guildId: interaction.guildId,
+          code,
+          discountPercent: percent,
+          discountMinor: amountMinor,
+          minOrderMinor,
+          maxUses,
+        },
+        ctx
+      );
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: 'COUPON ACTIVE',
+            body: `Coupon **\`${c.code}\`** created successfully.`,
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
+    }
+  }
+
+  // Grant Wallet Bonus Modal
+  if (customId === 'modal:grant_wallet_bonus') {
+    const targetId = interaction.fields.getTextInputValue('user_id').replace(/[^0-9]/g, '');
+    const amtStr = interaction.fields.getTextInputValue('amount');
+    const reason = interaction.fields.getTextInputValue('reason') || 'operator_bonus';
+
+    const amt = parseFloat(amtStr.replace(/[^0-9.]/g, ''));
+    if (!targetId || isNaN(amt) || amt <= 0) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'INVALID INPUT', body: 'Please specify a valid user ID and positive bonus amount.' })] });
+    }
+
+    const amtMinor = Math.round(amt * 100);
+    try {
+      const result = await native.wallet.deposit(
+        {
+          guildId: interaction.guildId,
+          memberId: targetId,
+          amountMinor: amtMinor,
+          currency: 'USD',
+          reference: `bonus:${reason}`,
+        },
+        ctx
+      );
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: 'WALLET BONUS GRANTED',
+            body: `Credited **${formatMoney(amtMinor, 'USD')}** to <@${targetId}>.\nNew Balance: **${formatMoney(result.balanceMinor, result.currency)}**`,
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
+    }
+  }
+
+  // Ingest AI Knowledge Modal
+  if (customId === 'modal:ai_ingest') {
+    const title = interaction.fields.getTextInputValue('title');
+    const category = interaction.fields.getTextInputValue('category');
+    const content = interaction.fields.getTextInputValue('content');
+
+    try {
+      const node = await native.aiStudio.ingestKnowledge(
+        { guildId: interaction.guildId, title, category, content },
+        ctx
+      );
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: 'KNOWLEDGE EMBEDDED',
+            body: `Indexed **${node.title}** into AI Semantic Memory.`,
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
+    }
+  }
+
+  // AI Prompt Sandbox Modal
+  if (customId === 'modal:ai_sandbox') {
+    const prompt = interaction.fields.getTextInputValue('prompt');
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const persona = await native.aiStudio.getPersona(interaction.guildId);
+      const completion = await client.runtime.agent.router.complete({
+        capability: 'conversation',
+        messages: [
+          { role: 'system', content: persona.systemPrompt },
+          { role: 'user', content: prompt },
+        ],
+        contextTokens: 500,
+        timeoutMs: 18_000,
+      });
+
+      return interaction.editReply({
+        flags: V2,
+        components: [
+          panel({
+            title: 'AI SIMULATION OUTPUT',
+            subtitle: `Active Persona: ${persona.name}`,
+            body: completion.text || 'Simulation produced no output.',
+            footer: 'Autonomous AI Sandbox Engine',
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.editReply({
+        flags: V2,
+        components: [notice({ title: 'SIMULATION FAILED', body: err.message })],
+      });
+    }
+  }
+
+  // Add Canned Response Modal
+  if (customId === 'modal:add_canned_response') {
+    const title = interaction.fields.getTextInputValue('title');
+    const category = interaction.fields.getTextInputValue('category');
+    const content = interaction.fields.getTextInputValue('content');
+
+    await client.runtime.db.query(
+      `INSERT INTO ticket_canned_responses (guild_id, title, category, content) VALUES ($1, $2, $3, $4)`,
+      [interaction.guildId, title, category, content]
+    );
+
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [
+        notice({
+          title: 'CANNED RESPONSE SAVED',
+          body: `Saved template **${title}** under \`${category}\`.`,
+        }),
+      ],
+    });
+  }
+
+  // Roblox Custom Calc Modal
+  if (customId === 'modal:roblox_custom_calc') {
+    const amtStr = interaction.fields.getTextInputValue('target_robux');
+    const amt = parseInt(amtStr.replace(/[^0-9]/g, ''), 10);
+    if (!amt || amt <= 0) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'INVALID AMOUNT', body: 'Please enter a positive Robux amount.' })] });
+    }
+
+    const calc = native.roblox.calculateFee(amt, true);
+    return interaction.reply({
+      flags: V2,
+      ephemeral: true,
+      components: [
+        robloxCalculatorPanel({
+          netRobux: calc.targetNet,
+          grossPrice: calc.grossPrice,
+          feeAmount: calc.feeAmount,
+          effectiveNet: calc.effectiveNet,
+          isNet: true,
+        }),
+      ],
+    });
+  }
+
+  // Verification Challenge Answer
   if (action === 'verify-answer') {
     const sessionId = arg1;
     const answer = interaction.fields.getTextInputValue('answer');
@@ -599,6 +1164,7 @@ async function handleModal(interaction, client) {
     });
   }
 
+  // Wallet Deposit Modal
   if (action === 'wallet-deposit-modal') {
     const amtStr = interaction.fields.getTextInputValue('amount');
     const amt = parseFloat(amtStr.replace(/[^0-9.]/g, ''));
@@ -631,6 +1197,7 @@ async function handleModal(interaction, client) {
     });
   }
 
+  // Wallet Withdraw Modal
   if (action === 'wallet-withdraw-modal') {
     const amtStr = interaction.fields.getTextInputValue('amount');
     const amt = parseFloat(amtStr.replace(/[^0-9.]/g, ''));
@@ -671,6 +1238,7 @@ async function handleModal(interaction, client) {
     }
   }
 
+  // Wallet Transfer Modal
   if (action === 'wallet-transfer-modal') {
     const rawRecipient = interaction.fields.getTextInputValue('recipient').replace(/[^0-9]/g, '');
     const amtStr = interaction.fields.getTextInputValue('amount');
@@ -713,6 +1281,7 @@ async function handleModal(interaction, client) {
     }
   }
 
+  // Roblox Link Modal
   if (action === 'roblox-link-modal') {
     const username = interaction.fields.getTextInputValue('username');
     try {
@@ -744,6 +1313,7 @@ async function handleModal(interaction, client) {
     }
   }
 
+  // Ticket Open Modal
   if (action === 'ticket-open-modal') {
     const subject = interaction.fields.getTextInputValue('subject');
     try {

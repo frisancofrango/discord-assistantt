@@ -161,6 +161,7 @@ try {
     config,
     logger,
     client,
+    memory: runtime.memory,
   });
 
   if (runtime.state.database && runtime.state.redis) await runtime.native.start();

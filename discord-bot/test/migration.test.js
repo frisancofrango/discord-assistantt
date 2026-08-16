@@ -34,3 +34,12 @@ test('wallet and roblox migration persists wallets, transactions and roblox link
   assert.match(sql, /UNIQUE\(guild_id, member_id, currency\)/i);
   assert.match(sql, /UNIQUE\(guild_id, member_id\)/i);
 });
+test('control panel and ai migration persists settings, coupons, canned responses, and knowledge nodes', async () => {
+  const sql = await readFile(new URL('../migrations/010_control_panel_and_ai.sql', import.meta.url), 'utf8');
+  for (const table of ['guild_settings', 'coupons', 'ticket_canned_responses', 'ai_knowledge_nodes']) {
+    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, 'i'), table);
+  }
+  assert.match(sql, /anti_raid_level text NOT NULL DEFAULT 'standard'/i);
+  assert.match(sql, /UNIQUE\(guild_id, code\)/i);
+  assert.match(sql, /UNIQUE\(guild_id, content_hash\)/i);
+});
