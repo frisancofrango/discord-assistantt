@@ -52,3 +52,12 @@ test('enterprise suite migration persists oauth members, backups, license keys, 
   assert.match(sql, /UNIQUE\(variant_id, license_key\)/i);
   assert.match(sql, /UNIQUE\(guild_id, code\)/i);
 });
+
+test('marketing schedules and loyalty migration persists operating hours, channel schedules, loyalty tiers, flash drops and reviews', async () => {
+  const sql = await readFile(new URL('../migrations/012_marketing_schedules_loyalty.sql', import.meta.url), 'utf8');
+  for (const table of ['guild_operating_hours', 'channel_schedules', 'loyalty_tiers', 'member_loyalty', 'flash_drops', 'order_reviews']) {
+    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, 'i'), table);
+  }
+  assert.match(sql, /UNIQUE\(guild_id, channel_id\)/i);
+  assert.match(sql, /UNIQUE\(order_id\)/i);
+});

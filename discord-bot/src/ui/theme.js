@@ -512,16 +512,18 @@ export function operatorDashboardPanel({ tab = 'commerce', guildId, data = {}, s
   c.addTextDisplayComponents(text('-# Real-time visual server management, commerce, neural AI & support hub.'));
   c.addSeparatorComponents(divider(false));
 
-  // Navigation Dropdown
+  // Navigation Dropdown (10 Dedicated Operating Tabs)
   const navOptions = [
-    { label: '🛍️ Commerce & Products', value: 'commerce', description: 'Catalog, live inventory, keypool & coupons', default: tab === 'commerce' },
-    { label: '💳 Digital Wallet & Economy', value: 'wallet', description: 'Member balances, bonuses, affiliate earnings', default: tab === 'wallet' },
+    { label: '🛍️ Commerce & Catalog', value: 'commerce', description: 'Catalog, live inventory, keypool & coupons', default: tab === 'commerce' },
+    { label: '💳 Digital Wallet & Ledger', value: 'wallet', description: 'Member balances, bonuses, affiliate earnings', default: tab === 'wallet' },
+    { label: '🏆 Buyer Loyalty & Cashback', value: 'loyalty', description: 'VIP tiers, spend progression & leaderboard', default: tab === 'loyalty' },
     { label: '🤖 Autonomous AI Studio', value: 'ai', description: 'Personas, knowledge ingestion, prompt sandbox & autonomy', default: tab === 'ai' },
     { label: '🎫 Support & Ticket Desk', value: 'tickets', description: 'Live ticket queue, SLA metrics, canned responses & transcripts', default: tab === 'tickets' },
+    { label: '⏰ Operating Hours & Schedules', value: 'schedules', description: 'Support shifts, office hours & channel night-mode locks', default: tab === 'schedules' },
+    { label: '📣 Marketing & Flash Drops', value: 'marketing', description: 'Broadcast campaigns, flash drops & review incentives', default: tab === 'marketing' },
     { label: '🛡️ Security Fortress', value: 'security', description: 'Anti-nuke rate limiters, whitelist & emergency lockdown', default: tab === 'security' },
     { label: '🔄 Server & Member Backups', value: 'backups', description: 'Server snapshots, 1-click restore & OAuth2 member migration', default: tab === 'backups' },
     { label: '🎮 Roblox Matrix', value: 'roblox', description: '70/30 fee calculator, gamepass sync & user lookup', default: tab === 'roblox' },
-    { label: '📊 Growth & Intelligence', value: 'analytics', description: 'Revenue graphs, AOV, order volume & customer retention', default: tab === 'analytics' },
   ];
 
   c.addActionRowComponents(
@@ -534,10 +536,16 @@ export function operatorDashboardPanel({ tab = 'commerce', guildId, data = {}, s
     appendCommerceTab(c, data);
   } else if (tab === 'wallet') {
     appendWalletTab(c, data);
+  } else if (tab === 'loyalty') {
+    appendLoyaltyTab(c, data);
   } else if (tab === 'ai') {
     appendAiTab(c, data, settings);
   } else if (tab === 'tickets') {
     appendTicketsTab(c, data);
+  } else if (tab === 'schedules') {
+    appendSchedulesTab(c, data);
+  } else if (tab === 'marketing') {
+    appendMarketingTab(c, data);
   } else if (tab === 'security') {
     appendSecurityTab(c, data, settings);
   } else if (tab === 'backups') {
@@ -601,6 +609,77 @@ function appendWalletTab(c, { totalBalanceMinor = 0, currency = 'USD', activeWal
   const buttons = [
     button.primary('panel:wallet:grant_bonus', '🎁 Grant Balance Bonus'),
     button.neutral('wallet:view', '💳 My Wallet'),
+  ];
+  c.addSeparatorComponents(spacer(false));
+  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
+}
+
+function appendLoyaltyTab(c, { topBuyerCount = 0, totalCashbackMinor = 0 }) {
+  c.addTextDisplayComponents(text(
+    `## 🏆 Buyer Loyalty & VIP Cashback\n` +
+    `Tier System: **5 Active Tiers** (Bronze 1% ${THEME.glyph.arrow} Obsidian 10%)\n` +
+    `Total Distributed Cashback: **${formatMoney(totalCashbackMinor, 'USD')}**`
+  ));
+  c.addSeparatorComponents(spacer(false));
+
+  c.addTextDisplayComponents(text(
+    `### Loyalty Progression Rules\n` +
+    `> 🥉 **Bronze** ($10+ spend) ${THEME.glyph.arrow} **1%** Cashback\n` +
+    `> 🥈 **Silver** ($50+ spend) ${THEME.glyph.arrow} **2%** Cashback\n` +
+    `> 🥇 **Gold** ($150+ spend) ${THEME.glyph.arrow} **4%** Cashback\n` +
+    `> 💎 **Diamond** ($500+ spend) ${THEME.glyph.arrow} **7%** Cashback\n` +
+    `> 👑 **Obsidian** ($1,000+ spend) ${THEME.glyph.arrow} **10%** Cashback`
+  ));
+
+  const buttons = [
+    button.primary('panel:loyalty:view_board', '🥇 Top Buyer Leaderboard'),
+    button.neutral('loyalty:status', '👤 My Loyalty Status'),
+  ];
+  c.addSeparatorComponents(spacer(false));
+  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
+}
+
+function appendSchedulesTab(c, { hours = {}, lockedChannelsCount = 0 }) {
+  const statusStr = hours.isOpen ? '🟢 **ONLINE & OPEN**' : '🔴 **CLOSED (OUT OF OFFICE)**';
+  const daysStr = hours.days ? hours.days.map((d) => d.toUpperCase()).join(', ') : 'MON - SUN';
+
+  c.addTextDisplayComponents(text(
+    `## ⏰ Operating Hours & Channel Shifts\n` +
+    `Current Shift Status: ${statusStr}\n` +
+    `Shift Working Hours: **${hours.startTime || '09:00'} — ${hours.endTime || '22:00'} ${hours.timezone || 'UTC'}**\n` +
+    `Operational Days: **${daysStr}**`
+  ));
+  c.addSeparatorComponents(spacer(false));
+
+  c.addTextDisplayComponents(text(
+    `### Support Availability Notice\n` +
+    `> *"${hours.outOfOfficeMessage || 'Staff offline. Please leave message.'}"*`
+  ));
+
+  const buttons = [
+    button.primary('panel:schedule:edit_hours', '⚙️ Set Shift Hours Modal'),
+    button.neutral('channel:hours', '👁️ View Member Schedule Notice'),
+  ];
+  c.addSeparatorComponents(spacer(false));
+  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
+}
+
+function appendMarketingTab(c, { dropsCount = 0, reviewsCount = 0 }) {
+  c.addTextDisplayComponents(text(
+    `## 📣 Marketing, Flash Drops & Reviews\n` +
+    `Active Flash Drops: **${dropsCount}** | Verified Customer Reviews: **${reviewsCount}**`
+  ));
+  c.addSeparatorComponents(spacer(false));
+
+  c.addTextDisplayComponents(text(
+    `### Growth & Engagement Campaigns\n` +
+    `Launch time-limited product countdowns or inspect customer feedback:`
+  ));
+
+  const buttons = [
+    button.primary('panel:marketing:create_drop', '⚡ Create Flash Drop'),
+    button.neutral('marketing:drops_list', '📋 View Active Drops'),
+    button.neutral('marketing:reviews', '⭐ Customer Reviews'),
   ];
   c.addSeparatorComponents(spacer(false));
   c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));

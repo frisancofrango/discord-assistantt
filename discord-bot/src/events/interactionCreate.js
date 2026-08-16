@@ -83,6 +83,17 @@ async function handleStringSelect(interaction, client) {
       const stats = (await client.runtime.db.query(`SELECT count(*)::int as count, sum(balance_minor)::bigint as total FROM wallets WHERE guild_id = $1`, [interaction.guildId])).rows[0];
       data.activeWallets = stats?.count || 0;
       data.totalBalanceMinor = Number(stats?.total || 0);
+    } else if (tab === 'loyalty') {
+      const board = await native.loyalty.getLeaderboard(interaction.guildId, 5);
+      data.topBuyerCount = board.length;
+      data.totalCashbackMinor = board.reduce((s, b) => s + b.totalCashbackMinor, 0);
+    } else if (tab === 'schedules') {
+      data.hours = await native.schedule.getOperatingHours(interaction.guildId);
+    } else if (tab === 'marketing') {
+      const drops = await native.marketing.listFlashDrops(interaction.guildId);
+      const reviews = await native.marketing.listReviews(interaction.guildId, 5);
+      data.dropsCount = drops.length;
+      data.reviewsCount = reviews.length;
     } else if (tab === 'backups') {
       const backupsList = await native.backup.listBackups(interaction.guildId);
       const stats = await native.backup.getOAuthStats(interaction.guildId);
@@ -445,6 +456,58 @@ async function handleButton(interaction, client) {
           }),
         ],
       });
+    if (arg1 === 'loyalty' && arg2 === 'view_board') {
+      const board = await native.loyalty.getLeaderboard(interaction.guildId, 10);
+      const lines = board.map((b) => {
+        const medal = b.rank === 1 ? '🥇' : b.rank === 2 ? '🥈' : b.rank === 3 ? '🥉' : `**#${b.rank}**`;
+        return `> ${medal} <@${b.userId}> — **${formatMoney(b.lifetimeSpentMinor, 'USD')}** (\`${b.currentTier}\`)`;
+      }).join('\n') || 'No buyer records found.';
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [panel({ title: 'TOP BUYER LEADERBOARD', body: lines })],
+      });
+    }
+
+    if (arg1 === 'schedule' && arg2 === 'edit_hours') {
+      const start = new TextInputBuilder().setCustomId('start').setLabel('Shift Start Time (UTC, e.g. 09:00)').setValue('09:00').setStyle(TextInputStyle.Short).setRequired(true);
+      const end = new TextInputBuilder().setCustomId('end').setLabel('Shift End Time (UTC, e.g. 22:00)').setValue('22:00').setStyle(TextInputStyle.Short).setRequired(true);
+      const days = new TextInputBuilder().setCustomId('days').setLabel('Working Days (comma separated)').setValue('mon,tue,wed,thu,fri,sat,sun').setStyle(TextInputStyle.Short).setRequired(true);
+      const msg = new TextInputBuilder().setCustomId('msg').setLabel('Out of Office Notice Message').setValue('Our support team is currently offline. Please leave your message and staff will assist you as soon as hours open.').setStyle(TextInputStyle.Paragraph).setRequired(true);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:edit_shift_hours')
+          .setTitle('Set Support Operating Hours')
+          .addComponents(
+            new ActionRowBuilder().addComponents(start),
+            new ActionRowBuilder().addComponents(end),
+            new ActionRowBuilder().addComponents(days),
+            new ActionRowBuilder().addComponents(msg)
+          )
+      );
+    }
+
+    if (arg1 === 'marketing' && arg2 === 'create_drop') {
+      const title = new TextInputBuilder().setCustomId('title').setLabel('Drop Title (e.g. Flash Deal)').setStyle(TextInputStyle.Short).setRequired(true);
+      const variant = new TextInputBuilder().setCustomId('variant_id').setLabel('Product Variant ID').setStyle(TextInputStyle.Short).setRequired(true);
+      const price = new TextInputBuilder().setCustomId('price').setLabel('Flash Price (USD, e.g. 4.99)').setStyle(TextInputStyle.Short).setRequired(true);
+      const hours = new TextInputBuilder().setCustomId('hours').setLabel('Duration Hours (e.g. 2)').setValue('2').setStyle(TextInputStyle.Short).setRequired(true);
+      const stock = new TextInputBuilder().setCustomId('stock').setLabel('Max Stock (leave blank for unlimited)').setStyle(TextInputStyle.Short).setRequired(false);
+
+      return interaction.showModal(
+        new ModalBuilder()
+          .setCustomId('modal:create_flash_drop')
+          .setTitle('Create Flash Product Drop')
+          .addComponents(
+            new ActionRowBuilder().addComponents(title),
+            new ActionRowBuilder().addComponents(variant),
+            new ActionRowBuilder().addComponents(price),
+            new ActionRowBuilder().addComponents(hours),
+            new ActionRowBuilder().addComponents(stock)
+          )
+      );
     }
   }
 
@@ -1430,6 +1493,85 @@ async function handleModal(interaction, client) {
           notice({
             title: 'LICENSE KEYS LOADED',
             body: `Added **${result.addedCount}** key(s) to keypool. Available: **${result.totalUnused}**.`,
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
+    }
+  }
+
+  // Edit Shift Hours Modal
+  if (customId === 'modal:edit_shift_hours') {
+    const startTime = interaction.fields.getTextInputValue('start');
+    const endTime = interaction.fields.getTextInputValue('end');
+    const rawDays = interaction.fields.getTextInputValue('days');
+    const msg = interaction.fields.getTextInputValue('msg');
+    const days = rawDays.split(',').map((d) => d.trim().toLowerCase());
+
+    try {
+      const res = await native.schedule.setOperatingHours(
+        interaction.guildId,
+        { enabled: true, startTime, endTime, days, outOfOfficeMessage: msg },
+        ctx
+      );
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: 'OPERATING HOURS UPDATED',
+            body: `Shift set to **${res.startTime} — ${res.endTime} UTC** across (${res.days.join(', ')}).`,
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
+    }
+  }
+
+  // Create Flash Drop Modal
+  if (customId === 'modal:create_flash_drop') {
+    const title = interaction.fields.getTextInputValue('title');
+    const variantId = interaction.fields.getTextInputValue('variant_id');
+    const priceStr = interaction.fields.getTextInputValue('price');
+    const hoursStr = interaction.fields.getTextInputValue('hours');
+    const stockStr = interaction.fields.getTextInputValue('stock');
+
+    const priceMinor = Math.round(parseFloat(priceStr.replace(/[^0-9.]/g, '')) * 100);
+    const durationHours = parseInt(hoursStr, 10) || 2;
+    const maxStock = stockStr ? parseInt(stockStr.replace(/[^0-9]/g, ''), 10) : null;
+
+    try {
+      const drop = await native.marketing.createFlashDrop(
+        {
+          guildId: interaction.guildId,
+          title,
+          variantId,
+          dropPriceMinor: priceMinor,
+          maxStock,
+          durationHours,
+        },
+        ctx
+      );
+
+      const timeStr = `<t:${Math.floor(new Date(drop.expiresAt).getTime() / 1000)}:R>`;
+
+      return interaction.reply({
+        flags: V2,
+        components: [
+          panel({
+            title: `⚡ FLASH DROP: ${drop.title.toUpperCase()}`,
+            subtitle: `Special Flash Deal — ${formatMoney(drop.dropPriceMinor, 'USD')}`,
+            body:
+              `> **Flash Deal Price:** **${formatMoney(drop.dropPriceMinor, 'USD')}**\n` +
+              `> **Countdown Timer:** ${timeStr}\n` +
+              `> **Quantity:** ${drop.maxStock ? `**${drop.maxStock}** units available` : '**Unlimited**'}`,
+            buttons: [
+              button.primary(`buy:${drop.variantId}`, '⚡ Claim Flash Deal'),
+              button.neutral('store:view', '🛍️ Browse Store'),
+            ],
           }),
         ],
       });

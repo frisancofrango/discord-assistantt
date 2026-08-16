@@ -13,6 +13,8 @@ import { BackupService } from './backup.js';
 import { LicenseService } from './license.js';
 import { SecurityService } from './security.js';
 import { AffiliateService } from './affiliate.js';
+import { OperatingHoursService } from './schedule.js';
+import { LoyaltyService } from './loyalty.js';
 
 export function createNativeRuntime({ db, queue, tools, config, logger, client, memory, paymentAdapters = {} }) {
   const analytics = new AnalyticsService({ db, retentionDays: config.native?.analyticsRetentionDays ?? 30 });
@@ -31,6 +33,8 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
   const license = new LicenseService({ db, logger });
   const security = new SecurityService({ db, logger });
   const affiliate = new AffiliateService({ db, logger });
+  const schedule = new OperatingHoursService({ db, logger });
+  const loyalty = new LoyaltyService({ db, logger });
   let worker;
 
   function start() {
@@ -71,6 +75,8 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
     license,
     security,
     affiliate,
+    schedule,
+    loyalty,
     start,
     close: async () => worker?.close(),
   };
