@@ -8,6 +8,7 @@ import { withCorrelation, correlationId } from '../foundation/logger.js';
 import { sanitizeReply } from '../lib/sanitize.js';
 import { buildProposal, hashApprovalToken } from '../autonomy/proposal.js';
 import { proposalPanel, progressPanel, receiptPanel } from '../autonomy/ui.js';
+import { panel, notice, V2 } from '../ui/theme.js';
 
 const observed = [Events.MessageCreate, Events.MessageUpdate, Events.MessageDelete, Events.MessageReactionAdd, Events.MessageReactionRemove, Events.InteractionCreate, Events.GuildMemberAdd, Events.GuildMemberUpdate, Events.GuildMemberRemove, Events.GuildRoleCreate, Events.GuildRoleUpdate, Events.GuildRoleDelete, Events.ChannelCreate, Events.ChannelUpdate, Events.ChannelDelete, Events.ThreadCreate, Events.ThreadUpdate, Events.ThreadDelete, Events.GuildBanAdd, Events.GuildBanRemove, Events.AutoModerationActionExecution, Events.AutoModerationRuleCreate, Events.AutoModerationRuleUpdate, Events.AutoModerationRuleDelete, Events.GuildUpdate, Events.InviteCreate, Events.InviteDelete, Events.GuildScheduledEventCreate, Events.GuildScheduledEventUpdate, Events.GuildScheduledEventDelete, Events.WebhooksUpdate];
 
@@ -566,6 +567,33 @@ const actor = { id: message.author.id, guildId: message.guildId, authenticated: 
       return;
     }
 
+    // Real-time AutoMod Protection
+    if (message.guildId && !message.author?.bot && runtime.native?.automod) {
+      const scan = runtime.native.automod.scanMessage(message.content);
+      if (scan.flagged) {
+        try {
+          await message.delete().catch(() => {});
+          await message.channel.send({
+            flags: V2,
+            components: [
+              notice({
+                title: `🛡️ AUTOMOD ENFORCEMENT: ${scan.ruleType.toUpperCase()}`,
+                body: `<@${message.author.id}> — Your message was removed.\n**Reason:** ${scan.reason}`,
+              }),
+            ],
+          });
+          return;
+        } catch (err) {
+          logger.warn({ err: err.message }, 'automod enforcement error');
+        }
+      }
+    }
+
+    // Sticky channel messages
+    if (message.guildId && !message.author?.bot && runtime.native?.sticky) {
+      runtime.native.sticky.onChannelMessage(message).catch(() => {});
+    }
+
     const decision = engagement.decide({
       authorBot: message.author?.bot,
       webhookId: message.webhookId,
@@ -726,6 +754,28 @@ const actor = { id: message.author.id, guildId: message.guildId, authenticated: 
           await channel.send({ content: line, allowedMentions: { parse: [] } });
         } catch { /* noop */ }
       }, 1500);
+    }
+
+    // Ghost Ping Detection
+    if (deleted.guild && !deleted.author?.bot && deleted.mentions?.users?.size > 0) {
+      try {
+        const mentionsList = [...deleted.mentions.users.values()].map((u) => `<@${u.id}>`).join(' ');
+        await deleted.channel.send({
+          flags: V2,
+          components: [
+            panel({
+              title: '👻 GHOST PING DETECTED',
+              body:
+                `> **Author:** <@${deleted.author.id}> (\`${deleted.author.id}\`)\n` +
+                `> **Targeted Mentions:** ${mentionsList}\n` +
+                `> **Deleted Content:**\n\`\`\`\n${(deleted.content || '[No Text]').slice(0, 500)}\n\`\`\``,
+              footer: 'Ghost Ping Guardian · Real-Time Incident Capture',
+            }),
+          ],
+        });
+      } catch (err) {
+        logger.warn({ err: err.message }, 'ghost ping notification failed');
+      }
     }
   }
 

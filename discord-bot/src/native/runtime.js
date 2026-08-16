@@ -17,6 +17,10 @@ import { OperatingHoursService } from './schedule.js';
 import { LoyaltyService } from './loyalty.js';
 import { EscrowService } from './escrow.js';
 import { CryptoService } from './crypto.js';
+import { AutomodService } from './automod.js';
+import { StickyService } from './sticky.js';
+import { RoleService } from './roles.js';
+import { ModmailService } from './modmail.js';
 
 export function createNativeRuntime({ db, queue, tools, config, logger, client, memory, paymentAdapters = {} }) {
   const analytics = new AnalyticsService({ db, retentionDays: config.native?.analyticsRetentionDays ?? 30 });
@@ -39,6 +43,10 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
   const loyalty = new LoyaltyService({ db, logger });
   const escrow = new EscrowService({ db, logger });
   const crypto = new CryptoService({ db, logger });
+  const automod = new AutomodService({ db, logger });
+  const sticky = new StickyService({ db, logger });
+  const roles = new RoleService({ db, logger });
+  const modmail = new ModmailService({ db, logger });
   let worker;
 
   function start() {
@@ -83,6 +91,10 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
     loyalty,
     escrow,
     crypto,
+    automod,
+    sticky,
+    roles,
+    modmail,
     start,
     close: async () => worker?.close(),
   };

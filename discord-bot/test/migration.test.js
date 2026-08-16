@@ -69,3 +69,11 @@ test('escrow and crypto migration persists escrow deals and cryptocurrency invoi
   }
   assert.match(sql, /CHECK \(status IN/i);
 });
+
+test('advanced moderation suite migration persists automod rules, infractions, sticky messages, role menus, and modmail', async () => {
+  const sql = await readFile(new URL('../migrations/014_advanced_moderation_suite.sql', import.meta.url), 'utf8');
+  for (const table of ['automod_rules', 'member_infractions', 'sticky_messages', 'role_menus', 'modmail_threads']) {
+    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, 'i'), table);
+  }
+  assert.match(sql, /UNIQUE\(guild_id, rule_type\)/i);
+});

@@ -922,6 +922,27 @@ async function handleButton(interaction, client) {
     }
   }
 
+  // Role toggle operations
+  if (action === 'role' && arg1 === 'toggle') {
+    const roleId = arg2;
+    try {
+      const member = interaction.member;
+      const res = await native.roles.toggleRole(member, roleId);
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: res.added ? 'ROLE ADDED' : 'ROLE REMOVED',
+            body: res.added ? `You have been given the <@&${roleId}> role.` : `Removed the <@&${roleId}> role from your profile.`,
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ROLE ERROR', body: err.message })] });
+    }
+  }
+
   // Wallet operations
   if (action === 'wallet') {
     if (arg1 === 'view') {
