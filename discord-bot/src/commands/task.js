@@ -4,7 +4,7 @@ import { receiptPanel } from '../autonomy/ui.js';
 import { correlationId } from '../foundation/logger.js';
 
 export default {
-  data: new SlashCommandBuilder().setName('task').setDescription('Ask Azure to inspect and execute a server task (runs autonomously).').addStringOption(o => o.setName('goal').setDescription('What should Azure accomplish?').setRequired(true).setMaxLength(1000)).setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  data: new SlashCommandBuilder().setName('task').setDescription('Ask Loop to inspect and execute a server task (runs autonomously).').addStringOption(o => o.setName('goal').setDescription('What should Loop accomplish?').setRequired(true).setMaxLength(1000)).setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   async execute(interaction, client) {
     if (!interaction.inGuild() || interaction.guild.ownerId !== interaction.user.id) return interaction.reply({ content: 'Only the server owner can run /task.', ephemeral: true });
     await interaction.deferReply({ flags: MessageFlags.IsComponentsV2 });

@@ -133,7 +133,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
 
   const sendTyping = async (message) => { try { await message.channel.sendTyping(); } catch { /* noop */ } };
 
-  // Keeps the "Azure is typing..." bubble alive (Discord typing expires after
+  // Keeps the "Loop is typing..." bubble alive (Discord typing expires after
   // ~10s) for the whole duration of a model turn.
   const withTyping = async (message, work) => {
     await sendTyping(message);
@@ -211,7 +211,7 @@ export function createDiscordRuntime({ client, runtime, config, logger, memory =
       botMessages.set(extra.id, { channelId: channel.id, at: Date.now() });
     }
 engagement.recordResponse(scopeKey, lastId);
-    rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: ${String(raw).slice(0, 1500)}`, message.channelId);
+    rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nLoop: ${String(raw).slice(0, 1500)}`, message.channelId);
     if (Date.now() - (sentReplies.get(message.id)?.at ?? 0) > 10 * 60 * 60 * 1000) sentReplies.delete(message.id);
     return first;
   };
@@ -347,7 +347,7 @@ engagement.recordResponse(scopeKey, lastId);
       if (await maybeGhostEdit(message, final)) return final;
     }
     engagement.recordResponse(scopeKey, posted.id);
-    rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: ${final.slice(0, 1500)}`, message.channelId);
+    rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nLoop: ${final.slice(0, 1500)}`, message.channelId);
     return final;
   }
 
@@ -504,7 +504,7 @@ const actor = { id: message.author.id, guildId: message.guildId, authenticated: 
     return assembled;
   }
 
-  // Unified single-call turn for messages that did not explicitly engage Azure.
+  // Unified single-call turn for messages that did not explicitly engage Loop.
   // The model itself decides whether a reply is warranted, so we avoid a slow
   // serial classifier + answer double round-trip.
   async function maybeAutoReply(message, decision) {
@@ -599,17 +599,17 @@ const actor = { id: message.author.id, guildId: message.guildId, authenticated: 
       webhookId: message.webhookId,
       selfAuthored: message.author?.id === botId,
       isDM: !message.guildId,
-      mentionsAzure: message.mentions?.users?.has(botId),
-      repliesToAzure: message.reference?.messageId ? await message.channel.messages.fetch(message.reference.messageId).then((m) => m.author.id === botId).catch(() => false) : false,
+      mentionsLoop: message.mentions?.users?.has(botId),
+      repliesToLoop: message.reference?.messageId ? await message.channel.messages.fetch(message.reference.messageId).then((m) => m.author.id === botId).catch(() => false) : false,
       activeTask: false,
-      ownerCommand: message.guild?.ownerId === message.author?.id && /^azure[,!:\s]/i.test(message.content),
+      ownerCommand: message.guild?.ownerId === message.author?.id && /^loop[,!:\s]/i.test(message.content),
       channelId: message.channelId,
       threadId: message.channel?.isThread?.() ? message.channelId : null,
       userId: message.author?.id,
       content: message.content,
       question: /\?\s*$/.test(message.content),
-      azureRelevant: /\bazure\b/i.test(message.content),
-      recentAzureContext: false,
+      loopRelevant: /\bloop\b/i.test(message.content),
+      recentLoopContext: false,
       lowSignal: message.content.trim().length < 3,
       isEdit,
       materialEdit: isEdit && Boolean(message.editedTimestamp),
@@ -632,7 +632,7 @@ const actor = { id: message.author.id, guildId: message.guildId, authenticated: 
               if (target) {
                 await target.edit({ content: splitParts(response)[0], allowedMentions: { parse: [], repliedUser: false } });
                 sentReplies.set(message.id, { ...prior, at: Date.now() });
-                rememberExchange(message.author.id, message.guildId, `User edited to: ${message.content}\nAzure: ${splitParts(response)[0].slice(0, 1200)}`, message.channelId);
+                rememberExchange(message.author.id, message.guildId, `User edited to: ${message.content}\nLoop: ${splitParts(response)[0].slice(0, 1200)}`, message.channelId);
                 logger.info({ messageId: message.id }, 'reply edited in place after user edit');
               }
             }
@@ -662,14 +662,14 @@ const actor = { id: message.author.id, guildId: message.guildId, authenticated: 
           const approved = await maybeRunChatApproval(message, isEdit);
           if (approved) {
             engagement.recordResponse(active.scopeKey, message.id);
-            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed a chat-approved server proposal`, message.channelId);
+            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nLoop: executed a chat-approved server proposal`, message.channelId);
             return;
           }
           if (await isServerOwner(message) && serverOpIntent.test(`#${message.channel?.name ?? ''} ${message.content}`) && serverDomain.test(`#${message.channel?.name ?? ''} ${message.content}`)) {
             const handedOff = await withTyping(message, () => maybeRunServerTask(message));
             if (handedOff) {
               engagement.recordResponse(active.scopeKey, message.id);
-              rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed an approved server task`, message.channelId);
+              rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nLoop: executed an approved server task`, message.channelId);
               return;
             }
           }
@@ -684,12 +684,12 @@ const actor = { id: message.author.id, guildId: message.guildId, authenticated: 
           });
           if (outcome === 'approval') {
             engagement.recordResponse(active.scopeKey, message.id);
-            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed a chat-approved server proposal`, message.channelId);
+            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nLoop: executed a chat-approved server proposal`, message.channelId);
             return;
           }
           if (outcome === 'server_task') {
             engagement.recordResponse(active.scopeKey, message.id);
-            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nAzure: executed an approved server task`, message.channelId);
+            rememberExchange(message.author.id, message.guildId, `User: ${message.content}\nLoop: executed an approved server task`, message.channelId);
             return;
           }
         }
@@ -738,7 +738,7 @@ const actor = { id: message.author.id, guildId: message.guildId, authenticated: 
       return;
     }
     if (botMessages.has(deletedId)) {
-      // Someone deleted one of Azure's messages — react playfully, once per
+      // Someone deleted one of Loop's messages — react playfully, once per
       // channel and only if it was recent, so it never becomes noise.
       const entry = botMessages.get(deletedId);
       botMessages.delete(deletedId);

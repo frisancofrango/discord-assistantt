@@ -5,13 +5,13 @@ import { healthPanel, budgetPanel, approvalsPanel, policiesPanel, memoryPanel, K
 const SECTIONS = new Set(Object.keys(KINDS));
 
 /**
- * Owner-only Azure console. Each subcommand renders a monochrome Components V2
+ * Owner-only Loop console. Each subcommand renders a monochrome Components V2
  * panel backed by live runtime state; panels carry Refresh / Close buttons.
  */
 export default {
   data: new SlashCommandBuilder()
     .setName('admin')
-    .setDescription('Azure owner console: health, budget, approvals, policies, memory.')
+    .setDescription('Loop owner console: health, budget, approvals, policies, memory.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand((s) => s.setName('health').setDescription('System health, model health, memory status.'))
     .addSubcommand((s) => s.setName('budget').setDescription('Agent spend vs budget and reservations.'))
@@ -20,7 +20,7 @@ export default {
     .addSubcommand((s) => s.setName('memory').setDescription('Semantic memory (RAG) status and recent rows.')),
   async execute(interaction, client) {
     if (!interaction.inGuild() || interaction.guild.ownerId !== interaction.user.id) {
-      return interaction.reply({ content: 'Only the server owner can open the Azure console.', ephemeral: true });
+      return interaction.reply({ content: 'Only the server owner can open the Loop console.', ephemeral: true });
     }
     const section = interaction.options.getSubcommand(true);
     await interaction.deferReply({ ephemeral: true });

@@ -185,7 +185,7 @@ try {
         timeoutMs: 18_000,
         race: false,
         messages: [
-          { role: 'system', content: 'You are Azure, a Discord server assistant. Reply with exactly: ok' },
+          { role: 'system', content: 'You are Loop, a Discord server assistant. Reply with exactly: ok' },
           { role: 'user', content: 'keepalive' },
         ],
       })
@@ -249,7 +249,7 @@ try {
       .catch((err) => logger.error({ err }, 'safe workflow recovery failed'));
   }
 } catch (err) {
-  logger.fatal({ err }, 'Azure startup failed');
+  logger.fatal({ err }, 'Loop startup failed');
   await shutdown('startup-failure', 1);
 }
 

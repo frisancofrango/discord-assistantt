@@ -133,7 +133,7 @@ export default {
               `> **Valor:** R$ ${(invoice.amount_minor / 100).toFixed(2).replace('.', ',')}\n` +
               `> **Status:** **\`${invoice.status.toUpperCase()}\`**\n` +
               `> **Criado em:** <t:${Math.floor(new Date(invoice.created_at).getTime() / 1000)}:F>`,
-            footer: 'Sistema Financeiro Azure',
+            footer: 'Sistema Financeiro Loop',
           }),
         ],
       });

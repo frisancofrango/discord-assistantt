@@ -1,6 +1,6 @@
-# Azure — Production Architecture
+# Loop — Production Architecture
 
-Azure is an agentic Discord server operating system. It converts owner goals into inspected, reviewable, executable plans and never reports an action as complete without tool evidence.
+Loop is an agentic Discord server operating system. It converts owner goals into inspected, reviewable, executable plans and never reports an action as complete without tool evidence.
 
 ## Non-negotiable invariants
 
@@ -12,7 +12,7 @@ Azure is an agentic Discord server operating system. It converts owner goals int
 6. **Rollback.** Mutable Discord resources are snapshotted before changes; reversible operations emit compensating actions.
 7. **No production self-rewrite.** Code workers may prepare and test patches, but deployment requires owner approval.
 8. **No spam or deception.** Marketing is consent-based, rate-limited, attributable, and policy checked.
-9. **Azure identity.** User-facing output identifies the assistant only as Azure; provider/model internals remain operator telemetry.
+9. **Loop identity.** User-facing output identifies the assistant only as Loop; provider/model internals remain operator telemetry.
 
 ## Runtime topology
 
@@ -54,7 +54,7 @@ Domains: `conversation`, `moderation`, `server_design`, `support`, `verification
 
 ## Context and engagement
 
-Azure stores events by guild/channel/thread/user/conversation. Context assembly combines:
+Loop stores events by guild/channel/thread/user/conversation. Context assembly combines:
 
 1. replied-to message and reference chain
 2. current thread/channel recent window

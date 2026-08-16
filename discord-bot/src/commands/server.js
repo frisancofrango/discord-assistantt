@@ -5,7 +5,7 @@ import { actorContext } from '../native/core.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('server')
-    .setDescription('Operate Azure native server systems.')
+    .setDescription('Operate Loop native server systems.')
     .addSubcommand((s) =>
       s
         .setName('store')
@@ -78,7 +78,7 @@ export default {
             title: `TICKET #${row.sequence}`,
             body: `**${row.subject}**\nStatus: \`${row.status.toUpperCase()}\``,
             buttons: [button.neutral(`ticket:close:${row.id}`, 'Close Ticket')],
-            footer: 'Azure Support',
+            footer: 'Loop Support',
           }),
         ],
       });

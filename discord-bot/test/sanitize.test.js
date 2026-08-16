@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { sanitizeReply, collapseRepeats } from '../src/lib/sanitize.js';
 
 test('sanitizeReply strips fabricated transcript scaffolding', () => {
-  const leaky = `Azure APP — 5:43 PM
+  const leaky = `Loop APP — 5:43 PM
 honestly not much yet. just this conversation and that you're the server owner. memory's pretty empty otherwise.
-Azure is typing...
+Loop is typing...
 — 5:44 PM
 told you, just this conversation and you owning the place. memory's still basically blank.
-Looking at this, I need to understand how the Azure bot's memory system currently works. Let me explore the codebase to see the implementation.`;
+Looking at this, I need to understand how the Loop bot's memory system currently works. Let me explore the codebase to see the implementation.`;
   const out = sanitizeReply(leaky);
   assert.equal(out.includes('5:43 PM'), false);
   assert.equal(out.includes('typing...'), false);
@@ -53,7 +53,7 @@ test('collapseRepeats drops exact duplicate consecutive paragraphs', () => {
 });
 
 test('sanitizeReply trims to empty when everything is scaffolding', () => {
-  assert.equal(sanitizeReply('Azure APP — 5:43 PM\nAzure is typing...\nLooking at this, I need to see the codebase.'), '');
+  assert.equal(sanitizeReply('Loop APP — 5:43 PM\nLoop is typing...\nLooking at this, I need to see the codebase.'), '');
 });
 
 test('sanitizeReply collapses truncated near-duplicate sentences inside one paragraph', () => {

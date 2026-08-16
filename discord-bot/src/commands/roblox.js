@@ -139,7 +139,7 @@ export default {
               `> **Roblox Username:** \`${link.robloxUsername}\`\n` +
               `> **Roblox User ID:** \`${link.robloxId}\`\n` +
               `> **Status:** ✓ Active & Verified`,
-            footer: 'Azure Roblox Integration',
+            footer: 'Loop Roblox Integration',
           }),
         ],
       });

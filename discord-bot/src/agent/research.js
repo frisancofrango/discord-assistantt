@@ -8,7 +8,7 @@ export function validateResearchUrl(value, policy) {
   if (policy.allowedHosts?.length && !policy.allowedHosts.includes(url.hostname)) throw new Error('Research host is not allowlisted'); return url;
 }
 export class ResearchWorker {
-  constructor({ repositories, policy, fetch = globalThis.fetch, quarantineRoot = join(process.cwd(), '.azure-quarantine') }) { this.repositories=repositories; this.policy=policy; this.fetch=fetch; this.root=quarantineRoot; }
+  constructor({ repositories, policy, fetch = globalThis.fetch, quarantineRoot = join(process.cwd(), '.loop-quarantine') }) { this.repositories=repositories; this.policy=policy; this.fetch=fetch; this.root=quarantineRoot; }
   async gather({ taskId, stepId, urls }) {
     if (!Array.isArray(urls) || !urls.length || urls.length > 20) throw new Error('Research requires 1-20 URLs');
     const sources=[]; await mkdir(this.root,{recursive:true});

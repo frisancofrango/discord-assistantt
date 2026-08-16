@@ -271,7 +271,7 @@ export class ModelRouter {
     return p;
   }
   #spawnCli(profile, prompt, timeoutMs) {
-    return mkdtemp(join(tmpdir(), 'azure-cli-')).then((dir) => {
+    return mkdtemp(join(tmpdir(), 'loop-cli-')).then((dir) => {
       const file = join(dir, 'prompt.txt');
       return writeFile(file, prompt, 'utf8').then(() => new Promise((resolve, reject) => {
         const child = spawn('opencode', ['run', '--pure', '--format', 'json', '-m', profile.model, 'Follow the instructions in the attached prompt and answer directly.', '-f', file], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, CI: '1', NO_COLOR: '1' } });

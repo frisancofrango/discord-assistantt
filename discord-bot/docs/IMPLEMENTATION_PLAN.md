@@ -53,4 +53,4 @@ A capability is complete only when it has:
 
 ## Explicit platform boundaries
 
-Discord bot accounts cannot impersonate users or use ordinary user accounts as self-bots. Azure can invoke its own interactions and supported APIs, but cannot arbitrarily operate third-party applications without an exposed integration. Captcha and payments use provider adapters. Marketing is strictly opt-in; unsolicited messaging, scraping, fake engagement, and evasion are prohibited.
+Discord bot accounts cannot impersonate users or use ordinary user accounts as self-bots. Loop can invoke its own interactions and supported APIs, but cannot arbitrarily operate third-party applications without an exposed integration. Captcha and payments use provider adapters. Marketing is strictly opt-in; unsolicited messaging, scraping, fake engagement, and evasion are prohibited.

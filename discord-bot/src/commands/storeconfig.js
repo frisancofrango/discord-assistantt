@@ -73,7 +73,7 @@ export default {
               `> **Canal de Logs:** ${saved.logs_channel_id ? `<#${saved.logs_channel_id}>` : '*Não definido*'}\n` +
               `> **Moeda Principal:** **\`${saved.currency}\`**\n` +
               `> **Idioma:** \`${saved.language}\``,
-            footer: 'Azure Commerce Suite · Padrão de Excelência',
+            footer: 'Loop Commerce Suite · Padrão de Excelência',
           }),
         ],
       });

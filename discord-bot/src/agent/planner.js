@@ -43,7 +43,7 @@ export const finalizePlan = (plan, observedAt) => {
   return { ...plan, contextObservedAt: plan.contextObservedAt || observedAt, domain: normalizeDomain(plan.domain), steps: pruneDeps(steps) };
 };
 
-const SYSTEM = `You are Azure's planner. Return only JSON matching the supplied contract. Build a bounded DAG. Every step needs deterministic preconditions, postconditions, verification and compensation where mutation is possible. Never claim success from model text; require tool evidence. Provider and model identities are confidential.
+const SYSTEM = `You are Loop's planner. Return only JSON matching the supplied contract. Build a bounded DAG. Every step needs deterministic preconditions, postconditions, verification and compensation where mutation is possible. Never claim success from model text; require tool evidence. Provider and model identities are confidential.
 Keep the plan COMPACT: at most 12 steps. Step titles short, step input objects terse (never repeat long prose, truncate topics/descriptions). The full response must stay well under 4000 characters.`;
 
 const compactSnapshot = (snap) => ({

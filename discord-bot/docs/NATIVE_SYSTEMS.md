@@ -1,4 +1,4 @@
-# Azure native server systems
+# Loop native server systems
 
 Migration `005_native_systems.sql` adds the durable source of truth for support, verification, commerce, moderation, consent marketing, and analytics. Run `npm run migrate` before deployment. Workers rebuild SLA, expiry, moderation, and campaign jobs from PostgreSQL on restart; BullMQ keys make scheduling idempotent.
 
@@ -8,7 +8,7 @@ Tickets enforce per-member open limits and recent-subject duplicate detection. T
 
 ## Verification
 
-Verification begins with rules acceptance, then a built-in salted scrypt arithmetic challenge or a compatible challenge adapter. Attempts and expiry are persisted. Join-risk scores route suspicious members to manual review or quarantine. Successful role grants run through the typed Discord tool runtime and require a verified receipt. Azure never requests a user token, password, QR login, or Discord credentials.
+Verification begins with rules acceptance, then a built-in salted scrypt arithmetic challenge or a compatible challenge adapter. Attempts and expiry are persisted. Join-risk scores route suspicious members to manual review or quarantine. Successful role grants run through the typed Discord tool runtime and require a verified receipt. Loop never requests a user token, password, QR login, or Discord credentials.
 
 ## Commerce
 

@@ -5,7 +5,7 @@ import { actorContext } from '../native/core.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('ai')
-    .setDescription('Interact with Azure Autonomous AI and neural studio.')
+    .setDescription('Interact with Loop Autonomous AI and neural studio.')
     .addSubcommand((s) =>
       s
         .setName('ask')
@@ -74,10 +74,10 @@ export default {
           flags: V2,
           components: [
             panel({
-              title: 'AZURE AI ASSISTANT',
+              title: 'LOOP AI ASSISTANT',
               subtitle: `Persona: ${persona.name}`,
               body: completion.text || 'I could not generate an answer at this time.',
-              footer: `Model: ${completion.profile || 'azure-neural-v1'} · Ingested RAG Knowledge Context`,
+              footer: `Model: ${completion.profile || 'loop-neural-v1'} · Ingested RAG Knowledge Context`,
             }),
           ],
         });

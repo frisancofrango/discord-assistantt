@@ -56,7 +56,7 @@ export class RobloxService {
     const clean = username.trim();
     const res = await this.fetch('https://users.roblox.com/v1/usernames/users', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Azure-Discord-Bot/1.1' },
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Loop-Discord-Bot/1.1' },
       body: JSON.stringify({ usernames: [clean], excludeBannedUsers: false }),
     });
 

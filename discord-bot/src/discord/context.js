@@ -22,7 +22,7 @@ export class ContextAssembler {
     for(const m of exactMsgs)if(m.authorId&&aliasMap.has(m.authorId))m.author=aliasMap.get(m.authorId);
     for(const m of recent)if(m.authorId&&aliasMap.has(m.authorId))m.author=aliasMap.get(m.authorId);
     let semantic=[]; if(this.semanticSearch && !lean) semantic=await this.semanticSearch({guildId,userId,query:exactMsgs.at(-1)?.content??'',limit:8});
-    const context={identity:'Azure',observedAt:new Date().toISOString(),exactReferenceChain:exactMsgs,recentMessages:recent,activeTasks:tasks,userMemories:memories,channelState:stateDigests.map((r)=>String(r.content).split('\n')).flat(),guildFacts,semanticMemories:semantic,userAlias:aliasMap.get(userId)??null};
+    const context={identity:'Loop',observedAt:new Date().toISOString(),exactReferenceChain:exactMsgs,recentMessages:recent,activeTasks:tasks,userMemories:memories,channelState:stateDigests.map((r)=>String(r.content).split('\n')).flat(),guildFacts,semanticMemories:semantic,userAlias:aliasMap.get(userId)??null};
     this.#budget(context,maxTokens); return {...context,estimatedTokens:estimate(context)};
   }
   #message(r){return {id:r.discord_id,authorId:r.author_discord_id,author:r.username,content:trimText(r.content),attachments:r.metadata?.attachments??[],mentions:r.metadata?.mentions??{},reference:r.metadata?.reference??null,editedAt:r.last_discord_edited_at,deletedAt:r.deleted_at,createdAt:r.created_at};}

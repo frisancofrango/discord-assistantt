@@ -1,4 +1,4 @@
-# Azure operations and runbooks
+# Loop operations and runbooks
 
 ## Dependencies
 
@@ -32,7 +32,7 @@ cp .env.production.example .env
 # edit secrets
 # DATABASE_URL in compose is assembled from POSTGRES_PASSWORD
 docker compose up --build -d
-docker compose logs -f azure
+docker compose logs -f loop
 docker compose down
 ```
 
@@ -50,17 +50,17 @@ PostgreSQL and Redis use named volumes. Back them up before schema upgrades.
 
 ```sh
 # Backup (point-in-time consistency, plain SQL)
-docker compose exec -T postgres pg_dump -U azure -d azure -F c -f /tmp/azure.dump
-docker compose cp postgres:/tmp/azure.dump ./backups/azure-$(date +%Y%m%d-%H%M%S).dump
+docker compose exec -T postgres pg_dump -U loop -d loop -F c -f /tmp/loop.dump
+docker compose cp postgres:/tmp/loop.dump ./backups/loop-$(date +%Y%m%d-%H%M%S).dump
 
 # Restore into a fresh volume (drill: always on a scratch stack first)
 docker compose down -v --remove-orphans        # WARNING: destroys all volumes
 docker compose up -d postgres redis
-docker compose cp ./backups/azure-latest.dump postgres:/tmp/restore.dump
-docker compose exec -T postgres pg_restore -U azure -d azure -F c --clean --if-exists /tmp/restore.dump
+docker compose cp ./backups/loop-latest.dump postgres:/tmp/restore.dump
+docker compose exec -T postgres pg_restore -U loop -d loop -F c --clean --if-exists /tmp/restore.dump
 
 # Verify: row counts for evidence-bearing tables
-docker compose exec postgres psql -U azure -d azure -c \
+docker compose exec postgres psql -U loop -d loop -c \
   "SELECT (SELECT count(*) FROM evidence) evidence, (SELECT count(*) FROM workflow_receipts) receipts, (SELECT count(*) FROM semantic_memories) semantic;"
 ```
 
@@ -69,10 +69,10 @@ rows and their vectors — pgvector data restores with the extension image.
 
 ### R2 · Restart recovery
 
-1. `docker compose restart azure` — BullMQ jobs resurface via retries; safe
+1. `docker compose restart loop` — BullMQ jobs resurface via retries; safe
    workflow executions are picked up by `executor.recover()` on startup
    (`workflow_executions` with status `queued|running|cancelling|rolling_back`).
-2. Verify `/ready` returns 200 and `docker compose logs azure | grep -i recover`
+2. Verify `/ready` returns 200 and `docker compose logs loop | grep -i recover`
    shows recovery summaries.
 3. If Redis was lost, jobs are unrecoverable by design (durable state lives in
    PostgreSQL); re-run the source command/approval to re-enqueue.
@@ -80,11 +80,11 @@ rows and their vectors — pgvector data restores with the extension image.
 ### R3 · Discord rate-limit (429) storm
 
 - The bot emits rate-limit events through the gateway; tools that hit Discord
-  return error receipts. Check `GET /ready` + `docker compose logs azure` for
+  return error receipts. Check `GET /ready` + `docker compose logs loop` for
   `429` clusters.
-- First verify no tool or marketing loop is retrying blindly: `docker compose logs azure | grep -i '429' | head -50`.
+- First verify no tool or marketing loop is retrying blindly: `docker compose logs loop | grep -i '429' | head -50`.
 - Idle workers, wait 5–10 minutes (global limits reset per route), then
-  `docker compose restart azure` if the limit never cleared (e.g. a `429` on
+  `docker compose restart loop` if the limit never cleared (e.g. a `429` on
   `/guilds/:id/roles` while a stuck workflow re-runs).
 - Marketing is rate-limited by `MARKETING_MAX_RATE_PER_MINUTE`; lower it if a
   server hits persistent 429s on message sends.
@@ -96,7 +96,7 @@ rows and their vectors — pgvector data restores with the extension image.
   `MODEL_CIRCUIT_RESET_MS`); `/admin health` shows open circuits.
 - If embeddings are down, semantic search degrades to `[]` and ingestion is
   skipped; relational memory keeps working. `/admin health` reflects RAG status.
-- Restore order: provider API key → `docker compose restart azure` → confirm
+- Restore order: provider API key → `docker compose restart loop` → confirm
   `/admin health` shows healthy circuits.
 
 ### R5 · Staging-guild end-to-end suite (manual)
@@ -107,7 +107,7 @@ rows and their vectors — pgvector data restores with the extension image.
    `/warn` DMs the target; `/task` produces a proposal panel; approve and watch
    the progress → receipt flow; `/admin health|budget|approvals|policies|memory`
    all render and Refresh works.
-4. Send a message mentioning Azure, wait for a reply, then `/admin memory` — the
+4. Send a message mentioning Loop, wait for a reply, then `/admin memory` — the
    exchange row should appear (RAG enabled), and `/admin memory` → Wipe All
    clears it.
 

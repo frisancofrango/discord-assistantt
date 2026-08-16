@@ -1,4 +1,4 @@
--- Semantic memory: pgvector-backed RAG store for Azure.
+-- Semantic memory: pgvector-backed RAG store for Loop.
 -- Vectors are produced by an OpenAI-compatible embeddings endpoint
 -- (default: Nomic Embed Text v1.5, 768 dimensions).
 CREATE EXTENSION IF NOT EXISTS vector;

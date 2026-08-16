@@ -63,7 +63,7 @@ test('PixService: generatePixPayload adheres to BCB standard with valid CRC16', 
   const svc = new PixService({ db: null });
   const payload = svc.generatePixPayload({
     pixKey: 'pix@test.com',
-    merchantName: 'AZURE STORE',
+    merchantName: 'LOOP STORE',
     merchantCity: 'BRASILIA',
     amount: '15.00',
     txId: 'AZ12345',

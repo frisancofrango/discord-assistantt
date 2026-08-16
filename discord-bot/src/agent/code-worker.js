@@ -10,7 +10,7 @@ function run(command,cwd,timeoutMs) { assertSandboxPolicy(command); return new P
 export class CodeWorker {
   constructor({repositories,workspaceRoot,validationCommands,commandTimeoutMs=120000}) { this.repositories=repositories; this.workspaceRoot=resolve(workspaceRoot); this.commands=validationCommands; this.timeout=commandTimeoutMs; }
   async execute({taskId,stepId,patch,applyPatch}) {
-    if(typeof patch!=='string'||!patch.trim()) throw new Error('A patch is required'); const sandbox=await mkdtemp(join(tmpdir(),'azure-code-'));
+    if(typeof patch!=='string'||!patch.trim()) throw new Error('A patch is required'); const sandbox=await mkdtemp(join(tmpdir(),'loop-code-'));
     try {
       await run(`git clone --no-hardlinks --local "${this.workspaceRoot}" .`,sandbox,this.timeout); const patchFile=join(sandbox,'change.patch'); await writeFile(patchFile,patch,{flag:'wx'});
       if(applyPatch) await applyPatch({sandbox,patchFile}); else { const applied=await run('git apply --check change.patch && git apply change.patch',sandbox,this.timeout); if(applied.code!==0) throw new Error(`Patch rejected: ${applied.stderr}`); }

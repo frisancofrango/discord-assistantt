@@ -1,15 +1,15 @@
 // Hardening for model output before it reaches chat. Strips leaked
 // chain-of-thought ("Looking at this, I need to understand..."), fabricated
-// chat-transcript scaffolding ("Azure APP — 5:43 PM", "Azure is typing...",
+// chat-transcript scaffolding ("Loop APP — 5:43 PM", "Loop is typing...",
 // " — 5:44 PM"), and echo/repetition the model emits when it loops on a
 // question. Pure text in, cleaned text out. Runtime control markers
 // (##NO_REPLY##, ##REACT:..##, ##GHOSTEDIT##) are left untouched.
 
 const apostrophe = (t) => String(t).replace(/[\u2018\u2019`]/g, "'");
 
-// "Azure APP — 5:43 PM", "6zzy — 5:42 PM", or a stray " — 5:44 PM" tail line.
+// "Loop APP — 5:43 PM", "6zzy — 5:42 PM", or a stray " — 5:44 PM" tail line.
 const transcriptLine = /^\s*[^@#\n]{0,40}\s*(?:—|–)\s*\d{1,2}:\d{2}\b[^\n]{0,60}$/;
-// "Azure is typing..." and friends.
+// "Loop is typing..." and friends.
 const typingLine = /^[^#\n]{1,40}\s+is\s+typing\.{2,}$/i;
 // Chain-of-thought / coding-assistant lead-ins (leading or trailing lines only).
 const cotLead = /^(?:looking at this[,.]?|let(?:'s| me) (?:start|begin|take a look at|look|check|explore|see|read|investigate|dig|search|understand)|i need to (?:understand|see|check|look)|i(?:'m|'ll| will) (?:go(?:ing)? to )?(?:look|check|explore|see|read|open|inspect|examine|search|investigate|dig|start)|first[,:]?\s+i (?:need|should|want)|my (?:next )?step is|so[,;]?\s+let(?:'s| me) (?:start|begin|look|check|explore))[^\n]{0,220}$/i;

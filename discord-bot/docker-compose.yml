@@ -2,24 +2,24 @@ services:
   postgres:
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_DB: azure
-      POSTGRES_USER: azure
+      POSTGRES_DB: loop
+      POSTGRES_USER: loop
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-    volumes: [azure-postgres:/var/lib/postgresql/data]
-    healthcheck: { test: [CMD-SHELL, "pg_isready -U azure"], interval: 5s, timeout: 3s, retries: 20 }
+    volumes: [loop-postgres:/var/lib/postgresql/data]
+    healthcheck: { test: [CMD-SHELL, "pg_isready -U loop"], interval: 5s, timeout: 3s, retries: 20 }
   redis:
     image: redis:7.4-alpine
     command: [redis-server, --appendonly, "yes"]
-    volumes: [azure-redis:/data]
+    volumes: [loop-redis:/data]
     healthcheck: { test: [CMD, redis-cli, ping], interval: 5s, timeout: 3s, retries: 20 }
-  azure:
+  loop:
     build: .
     init: true
     restart: unless-stopped
     env_file: [.env]
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://azure:${POSTGRES_PASSWORD}@postgres:5432/azure
+      DATABASE_URL: postgresql://loop:${POSTGRES_PASSWORD}@postgres:5432/loop
       REDIS_URL: redis://redis:6379
       HTTP_HOST: 0.0.0.0
     ports: ["3000:3000"]
@@ -28,4 +28,4 @@ services:
       redis: { condition: service_healthy }
     healthcheck: { test: [CMD, wget, -qO-, http://localhost:3000/ready], interval: 10s, timeout: 3s, retries: 10 }
     stop_grace_period: 20s
-volumes: { azure-postgres: {}, azure-redis: {} }
+volumes: { loop-postgres: {}, loop-redis: {} }

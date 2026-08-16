@@ -39,7 +39,7 @@ export default {
         body:
           'Welcome to the server! To prevent bots and spam, please review our community guidelines and click **Accept Rules** to solve a quick security challenge.',
         buttons: [button.primary(`verify:rules:${session.id}`, '✓ Accept Rules & Verify')],
-        footer: 'Azure Anti-Raid & Verification Engine',
+        footer: 'Loop Anti-Raid & Verification Engine',
       });
 
       return interaction.reply({

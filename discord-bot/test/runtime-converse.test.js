@@ -27,7 +27,7 @@ function makeRuntime(overrides = {}) {
 
 test('converse replies with a graceful fallback when the model endpoint is unreachable', async () => {
   const runtime = makeRuntime();
-  const message = { id: '1', author: { id: '2' }, content: 'hi azure', editedAt: null };
+  const message = { id: '1', author: { id: '2' }, content: 'hi loop', editedAt: null };
   const content = await runtime.converse({ message, context: { estimatedTokens: 100, channels: [] }, decision: { reason: 'name_mention' } });
   assert.equal(typeof content, 'string');
   assert.match(content, /i\u2019m alive/i);

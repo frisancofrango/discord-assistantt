@@ -4,7 +4,7 @@ import { operatorDashboardPanel, V2 } from '../ui/theme.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('panel')
-    .setDescription('Open the visual multi-tab Azure Operator Control Center.')
+    .setDescription('Open the visual multi-tab Loop Operator Control Center.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction, client) {

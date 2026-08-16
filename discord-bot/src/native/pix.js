@@ -33,8 +33,8 @@ export class PixService {
     this.logger = logger;
   }
 
-  generatePixPayload({ pixKey, merchantName = 'AZURE STORE', merchantCity = 'BRASILIA', amount, txId }) {
-    const key = pixKey || 'pagamento@azurestore.com.br';
+  generatePixPayload({ pixKey, merchantName = 'LOOP STORE', merchantCity = 'BRASILIA', amount, txId }) {
+    const key = pixKey || 'pagamento@loopstore.com.br';
     const name = merchantName.slice(0, 25).toUpperCase();
     const city = merchantCity.slice(0, 15).toUpperCase();
     const safeTxId = (txId || crypto.randomBytes(6).toString('hex')).slice(0, 25);
@@ -66,11 +66,11 @@ export class PixService {
     const invoiceId = `pix_${crypto.randomBytes(6).toString('hex')}`;
 
     const config = await this.getConfig(guildId);
-    const pixKey = config?.pix_key || 'suporte@azurestore.com.br';
+    const pixKey = config?.pix_key || 'suporte@loopstore.com.br';
 
     const copiaECola = this.generatePixPayload({
       pixKey,
-      merchantName: 'AZURE DIGITAL',
+      merchantName: 'LOOP DIGITAL',
       merchantCity: 'SAO PAULO',
       amount: amountBrl,
       txId: invoiceId.slice(4),

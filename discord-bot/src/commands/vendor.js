@@ -82,7 +82,7 @@ export default {
               `> **Taxa do Servidor:** **${row.commission_percent}%**\n` +
               `> **Repasse ao Vendedor:** **${100 - row.commission_percent}%**\n` +
               `> **Data de Cadastro:** <t:${Math.floor(new Date(row.created_at).getTime() / 1000)}:D>`,
-            footer: 'Azure Vendor Engine',
+            footer: 'Loop Vendor Engine',
           }),
         ],
       });

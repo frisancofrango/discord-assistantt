@@ -36,5 +36,5 @@ test('context assembler tolerates a disabled semantic hook', async () => {
   const c = await new ContextAssembler({ db: p, semanticSearch: async () => [], maxTokens: 1000 })
     .assemble({ messageId: '100000000000000001', guildId: null, userId: '400000000000000001' });
   assert.deepEqual(c.semanticMemories, []);
-  assert.ok(c.identity === 'Azure');
+  assert.ok(c.identity === 'Loop');
 });

@@ -1,8 +1,8 @@
-# Azure intelligence runtime
+# Loop intelligence runtime
 
 ## Model profiles
 
-Configure `MODEL_PROFILES_JSON` as a JSON array. Profiles are operator-only metadata and must include `id`, OpenAI-compatible `endpoint`, `model`, `capabilities`, and `contextWindow`. Optional scoring fields are `quality` (0–1), `inputCostPerMillion`, `outputCostPerMillion`, `latencyMs`, and `priority`. `apiKey` and custom `headers` are accepted but must be injected as secrets. Azure never includes endpoint, provider, profile, or model identity in user-facing text.
+Configure `MODEL_PROFILES_JSON` as a JSON array. Profiles are operator-only metadata and must include `id`, OpenAI-compatible `endpoint`, `model`, `capabilities`, and `contextWindow`. Optional scoring fields are `quality` (0–1), `inputCostPerMillion`, `outputCostPerMillion`, `latencyMs`, and `priority`. `apiKey` and custom `headers` are accepted but must be injected as secrets. Loop never includes endpoint, provider, profile, or model identity in user-facing text.
 
 Routing filters by capability and context fit, excludes open circuits, then scores quality, context fit, cost, latency, and priority. Retries rotate to distinct profiles. Configure `MODEL_MAX_RETRIES`, `MODEL_FAILURE_THRESHOLD`, `MODEL_CIRCUIT_RESET_MS`, and `AGENT_BUDGET_USD`. Usage and latency are persisted in `model_usage`; logs contain structured profile IDs but no credentials.
 
@@ -14,7 +14,7 @@ The `agent-tasks` queue resumes completed steps, checkpoints each new completion
 
 ## Research policy
 
-Research accepts 1–20 HTTPS URLs, rejects loopback/private networks, optionally enforces `RESEARCH_ALLOWED_HOSTS`, denies unapproved MIME types, follows no redirects, and enforces declared and actual byte limits plus request deadlines. Downloads are SHA-256 hashed and written with exclusive creation under `.azure-quarantine` using opaque names. Evidence records identify source URL, type, size, hash, quarantine state, and gather time. Gathered evidence is returned separately from synthesis.
+Research accepts 1–20 HTTPS URLs, rejects loopback/private networks, optionally enforces `RESEARCH_ALLOWED_HOSTS`, denies unapproved MIME types, follows no redirects, and enforces declared and actual byte limits plus request deadlines. Downloads are SHA-256 hashed and written with exclusive creation under `.loop-quarantine` using opaque names. Evidence records identify source URL, type, size, hash, quarantine state, and gather time. Gathered evidence is returned separately from synthesis.
 
 Configure `RESEARCH_MAX_BYTES`, `RESEARCH_TIMEOUT_MS`, `RESEARCH_ALLOWED_TYPES`, and comma-separated `RESEARCH_ALLOWED_HOSTS`. Quarantined artifacts are untrusted and must be scanned before any later consumer opens them.
 

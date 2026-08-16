@@ -494,7 +494,7 @@ async function handleButton(interaction, client) {
     }
 
     if (arg1 === 'pix' && arg2 === 'test_charge') {
-      const simulatedPixKey = `00020126580014br.gov.bcb.pix0136azure-pix-test-${Date.now().toString().slice(-6)}52040000530398654041.005802BR5913AzureCommerce6009SaoPaulo62070503***6304`;
+      const simulatedPixKey = `00020126580014br.gov.bcb.pix0136loop-pix-test-${Date.now().toString().slice(-6)}52040000530398654041.005802BR5913LoopCommerce6009SaoPaulo62070503***6304`;
       return interaction.reply({
         flags: V2,
         ephemeral: true,
@@ -966,7 +966,7 @@ async function handleButton(interaction, client) {
       const orderId = arg2;
       const order = await native.commerce.getOrder(orderId);
       const totalStr = formatMoney(order.subtotal_minor, order.currency);
-      const simulatedPixKey = `00020126580014br.gov.bcb.pix0136azure-pix-${order.id.slice(0, 8)}5204000053039865405${(order.subtotal_minor / 100).toFixed(2)}5802BR5913AzureCommerce6009SaoPaulo62070503***6304`;
+      const simulatedPixKey = `00020126580014br.gov.bcb.pix0136loop-pix-${order.id.slice(0, 8)}5204000053039865405${(order.subtotal_minor / 100).toFixed(2)}5802BR5913LoopCommerce6009SaoPaulo62070503***6304`;
 
       return interaction.reply({
         flags: V2,
@@ -1389,7 +1389,7 @@ async function handleButton(interaction, client) {
               button.neutral(`ticket:rate:${ticketId}:2`, '⭐⭐ 2'),
               button.danger(`ticket:rate:${ticketId}:1`, '⭐ 1'),
             ],
-            footer: 'Azure Support Quality Score',
+            footer: 'Loop Support Quality Score',
           }),
         ],
       });
@@ -1429,7 +1429,7 @@ async function handleButton(interaction, client) {
       return interaction.showModal(
         new ModalBuilder()
           .setCustomId(`verify-answer:${sessionId}`)
-          .setTitle('Azure Verification Challenge')
+          .setTitle('Loop Verification Challenge')
           .addComponents(new ActionRowBuilder().addComponents(input))
       );
     }
@@ -2192,9 +2192,9 @@ async function handleRollback(interaction, client, mode, executionId) {
 
 async function handleAdminButton(interaction, client, arg, token) {
   if (interaction.guild?.ownerId !== interaction.user.id) {
-    return interaction.reply({ content: 'Only the server owner can use the Azure console.', ephemeral: true });
+    return interaction.reply({ content: 'Only the server owner can use the Loop console.', ephemeral: true });
   }
-  if (arg === 'close') return interaction.update({ flags: V2, components: [panel({ title: 'AZURE · CONSOLE CLOSED', body: 'Panel dismissed.' })] });
+  if (arg === 'close') return interaction.update({ flags: V2, components: [panel({ title: 'LOOP · CONSOLE CLOSED', body: 'Panel dismissed.' })] });
   if (arg === 'wipe') {
     const removed = await client.runtime.memory.forgetAll({ guildId: interaction.guildId });
     return interaction.update({ flags: V2, components: [panel({ title: 'MEMORY WIPED', body: `Removed ${removed.removed} semantic memory row(s) for this server.` })] });

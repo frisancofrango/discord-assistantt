@@ -92,7 +92,7 @@ export default {
                     button.danger(`ticket:close:${ticket.id}`, '🔒 Close Ticket'),
                     button.neutral(`ticket:claim:${ticket.id}`, '🙋 Claim Ticket'),
                   ],
-                  footer: 'Azure Secure Support System',
+                  footer: 'Loop Secure Support System',
                 }),
               ],
             });
@@ -213,7 +213,7 @@ export default {
           notice({
             title: 'ACTIVE TICKETS',
             body: lines,
-            footer: 'Azure Support Queue',
+            footer: 'Loop Support Queue',
           }),
         ],
       });

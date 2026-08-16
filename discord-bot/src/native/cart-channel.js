@@ -171,7 +171,7 @@ export class CartChannelService {
               `> **Comentário:** *"${comment || 'Atendimento excelente e entrega super rápida!'}"*\n` +
               `> **Comprador:** <@${member.id}>\n` +
               `> **Pedido Verificado:** \`${orderId || 'ORD-' + Math.random().toString(36).slice(2, 8).toUpperCase()}\``,
-            footer: 'Avaliação 100% Verificada e Autêntica · Azure Social Proof',
+            footer: 'Avaliação 100% Verificada e Autêntica · Loop Social Proof',
           }),
         ],
       });

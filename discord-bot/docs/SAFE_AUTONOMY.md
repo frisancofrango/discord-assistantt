@@ -1,6 +1,6 @@
-# Azure safe autonomy workflows
+# Loop safe autonomy workflows
 
-`/task goal:<goal>` is proposal-first. Azure reads a fresh guild snapshot, creates a validated task DAG, and persists a two- or three-tier proposal. No mutation occurs during planning. Proposal panels show the normalized diff, selected scope, required permissions, cost/time/risk estimates, and irreversible warnings.
+`/task goal:<goal>` is proposal-first. Loop reads a fresh guild snapshot, creates a validated task DAG, and persists a two- or three-tier proposal. No mutation occurs during planning. Proposal panels show the normalized diff, selected scope, required permissions, cost/time/risk estimates, and irreversible warnings.
 
 Approvals are policy checked by guild, actor, domain, autonomy, risk, and budget. Approval tokens use 256 bits of randomness, are stored only as hashes, expire, are one-time use, and are bound to the proposal revision, actor, and guild. Decisions support approve all, dependency-safe partial approval, reject, and request changes. Revising a proposal invalidates earlier approval grants by revision binding.
 
@@ -16,6 +16,6 @@ Rollback uses persisted compensation descriptors and before/after snapshots. It 
 - `SNAPSHOT_MAX_AGE_MS`: maximum preflight/read age (default 60 seconds)
 - `WORKFLOW_CONCURRENCY`: bounded per-stage concurrency (default `2`)
 
-Apply `004_safe_autonomy.sql`, redeploy commands, and restart Azure. Startup registers the durable workflow services and performs recovery after PostgreSQL/Redis are ready. Shutdown stops new gateway work before foundation dependencies close.
+Apply `004_safe_autonomy.sql`, redeploy commands, and restart Loop. Startup registers the durable workflow services and performs recovery after PostgreSQL/Redis are ready. Shutdown stops new gateway work before foundation dependencies close.
 
 Live Discord behavior must be validated in a staging guild with the required bot permissions; automated tests use deterministic fakes and do not constitute live Discord validation.

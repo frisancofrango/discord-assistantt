@@ -1,6 +1,6 @@
 # Semantic memory (RAG)
 
-Azure keeps a pgvector-backed semantic memory store that feeds retrieval-augmented
+Loop keeps a pgvector-backed semantic memory store that feeds retrieval-augmented
 context into the agent loop. Exact recent turns still come from the relational
 `messages` tables; semantic memory answers the *"what have we talked about that is
 relevant to this request?"* question that exact matching cannot.
@@ -31,7 +31,7 @@ Discord event ──► gateway runtime
   (cosine distance), filtered by the Discord guild/user snowflake IDs stored in
   `metadata`. Results land in `context.semanticMemories` and are subject to the
   same token budget as every other context slice.
-- **Ingestion** — every engaged exchange ("User: … / Azure: …") is remembered as
+- **Ingestion** — every engaged exchange ("User: … / Loop: …") is remembered as
   `kind='exchange'` when `MEMORY_INGESTION=true`. Exchange rows are capped at 250
   per user to bound growth. Owners can store durable facts and wipe memory from
   the owner console.
