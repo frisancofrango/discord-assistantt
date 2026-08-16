@@ -4,7 +4,7 @@ import { helpMenuPanel, V2 } from '../ui/theme.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('help')
-    .setDescription('List Azure commands and how to use them.'),
+    .setDescription('List Loop commands and how to use them.'),
 
   async execute(interaction) {
     return interaction.reply({

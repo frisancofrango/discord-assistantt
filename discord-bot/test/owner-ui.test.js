@@ -43,7 +43,7 @@ test('admin command declares owner-only subcommands', () => {
 
 test('help command is registered and self-describing', () => {
   assert.equal(helpCommand.data.name, 'help');
-  assert.match(helpCommand.data.description, /List Azure commands/);
+  assert.match(helpCommand.data.description, /List Loop commands/);
 });
 
 test('operatorDashboardPanel renders all 5 nested categories without throwing', async () => {

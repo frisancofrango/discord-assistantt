@@ -217,7 +217,7 @@ export function storefrontPanel({ products = [], cartItemCount = 0, currency = '
       )
     );
     c.addSeparatorComponents(divider(false));
-    c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
+    c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Loop ©**'));
     return c;
   }
 
@@ -256,7 +256,7 @@ export function storefrontPanel({ products = [], cartItemCount = 0, currency = '
   }
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Loop ©**'));
   return c;
 }
 
@@ -289,7 +289,7 @@ export function cartPanel({ cart = {}, items = [], subtotalMinor = 0, originalSu
       )
     );
     c.addSeparatorComponents(divider(false));
-    c.addTextDisplayComponents(text('-# 🛡️ Ambiente Seguro · Processado pela **Azure OS ©**'));
+    c.addTextDisplayComponents(text('-# 🛡️ Ambiente Seguro · Processado pela **Loop ©**'));
     return c;
   }
 
@@ -345,7 +345,7 @@ export function cartPanel({ cart = {}, items = [], subtotalMinor = 0, originalSu
 
   // 3. Security Trust Footer
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Loop ©**'));
   return c;
 }
 
@@ -414,7 +414,7 @@ export function walletPanel({ wallet = {}, transactions = [], currency = 'BRL', 
 
   // 3. Security Trust Footer
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Loop ©**'));
   return c;
 }
 
@@ -457,7 +457,7 @@ export function checkoutPanel({ order, items = [], subtotalMinor = 0, currency =
   }
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Loop ©**'));
   return c;
 }
 
@@ -490,7 +490,7 @@ export function orderReceiptPanel({ order, items = [], mechanism = 'instant', ve
   );
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Loop ©**'));
   return c;
 }
 
@@ -532,61 +532,61 @@ export function robloxCalculatorPanel({ netRobux, grossPrice, feeAmount, effecti
  */
 export function helpMenuPanel() {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
-  c.addTextDisplayComponents(text('# AZURE SYSTEM GUIDE'));
-  c.addTextDisplayComponents(text('-# Complete operating manual & 37 slash command reference.'));
+  c.addTextDisplayComponents(text('# GUIA DO SISTEMA LOOP'));
+  c.addTextDisplayComponents(text('-# Manual operacional completo & referência de 37 comandos slash.'));
   c.addSeparatorComponents(divider(false));
 
   c.addTextDisplayComponents(text(
-    `### 🇧🇷 Brazilian Commerce & PIX Engine\n` +
-    `> \`/pix\` — Manage instant BCB PIX Copia e Cola & QR Code gateway\n` +
-    `> \`/storeconfig\` — Configure cart category, review channel & default currency\n` +
-    `> \`/vendor\` — Multi-seller partner registration & automated split payouts\n` +
-    `> \`/ranking\` — Live top customer spenders leaderboard with VIP medals\n` +
-    `> \`/sales\` — Open dynamic storefront with live stock inventory\n` +
-    `> \`/cart\` — Shopping cart management & stock reservations\n` +
-    `> \`/wallet\` — Digital wallet balance, deposits, withdrawals & P2P transfers\n` +
-    `> \`/orders\` — Customer purchase history & verified cryptographic receipts\n` +
-    `> \`/coupon\` — Promo discount codes & minimum purchase limits\n` +
-    `> \`/escrow\` — P2P safe trade rooms with escrow vault & arbitration\n` +
-    `> \`/license\` — Digital license serial pool & automated key dispenser\n` +
-    `> \`/affiliate\` — Referral links & commission rewards tracking\n\n` +
-    `### 🛡️ Moderation, Defense & AutoMod\n` +
-    `> \`/automod\` — Anti-spam velocity, invite link blocking & word filters\n` +
-    `> \`/sticky\` — Floating rules message pinned to channel bottom\n` +
-    `> \`/roles\` — Self-service interactive button & select role menus\n` +
-    `> \`/modmail\` — Private member-to-staff DM relay & forum tickets\n` +
-    `> \`/security\` — Anti-nuke velocity guardian, whitelist & lockdown\n` +
-    `> \`/warn\` — Formal member warning logger with DM notice\n` +
-    `> \`/timeout\` — Temporary member timeout enforcement\n` +
-    `> \`/kick\` & \`/ban\` — Policy-audited member removal & logging\n` +
-    `> \`/purge\` — Bulk channel message cleanup\n\n` +
-    `### ⏰ Operations, Marketing & AI Hub\n` +
-    `> \`/panel\` — Visual 11-tab Operator Control Center\n` +
-    `> \`/channel\` — Shift working hours, out-of-office banners & night-mode locks\n` +
-    `> \`/loyalty\` — VIP cashback tiers (1% - 10%) & reward progress\n` +
-    `> \`/marketing\` — Time-limited flash drops with countdowns & review incentives\n` +
-    `> \`/backup\` — Server template snapshots & OAuth2 member restore\n` +
-    `> \`/roblox\` — 70/30 marketplace tax calculator & Roblox account link\n` +
-    `> \`/ticket\` — Customer support desk & cryptographic transcripts\n` +
-    `> \`/verify\` — Arithmetic captcha gateway for anti-bot protection\n` +
-    `> \`/ai\` — Autonomous AI Studio (Personas, RAG Learn, Prompt Sandbox)\n` +
-    `> \`/admin\` — System health, autonomy budget & policies\n` +
-    `> \`/task\` — Multi-step autonomous agent goal runner`
+    `### 🇧🇷 Comércio Brasileiro & Gateway PIX\n` +
+    `> \`/pix\` — Gerenciar gateway PIX Copia e Cola & QR Code com CRC16 do BCB\n` +
+    `> \`/storeconfig\` — Configurar categoria de carrinhos, canal de avaliações & moeda\n` +
+    `> \`/vendor\` — Cadastro de múltiplos vendedores & split automático de pagamentos\n` +
+    `> \`/ranking\` — Leaderboard em tempo real dos maiores compradores com medalhas VIP\n` +
+    `> \`/sales\` — Vitrine dinâmica com estoque e botões de compra rápida\n` +
+    `> \`/cart\` — Carrinho privado com reserva de estoque e cupons\n` +
+    `> \`/wallet\` — Carteira digital, depósitos via PIX, saques & transferências P2P\n` +
+    `> \`/orders\` — Histórico de compras com comprovantes criptografados\n` +
+    `> \`/coupon\` — Cupons de desconto promocionais e limites de uso\n` +
+    `> \`/escrow\` — Salas de intermediação segura P2P com cofre e arbitragem\n` +
+    `> \`/license\` — Pool de seriais e dispensador automático de chaves\n` +
+    `> \`/affiliate\` — Links de afiliados e comissões automáticas\n\n` +
+    `### 🛡️ Moderação, Defesa & AutoMod\n` +
+    `> \`/automod\` — Anti-spam de velocidade, bloqueador de convites e filtro de palavras\n` +
+    `> \`/sticky\` — Mensagem de regras flutuante fixada no rodapé do canal\n` +
+    `> \`/roles\` — Menus interativos de auto-atribuição de cargos via botões e select\n` +
+    `> \`/modmail\` — Atendimento privado de DMs de membros via tópicos/canais da staff\n` +
+    `> \`/security\` — Guardião anti-nuke, whitelist de confiança e lockdown\n` +
+    `> \`/warn\` — Sistema de advertências formais com log e aviso na DM\n` +
+    `> \`/timeout\` — Aplicação de castigo temporário para membros\n` +
+    `> \`/kick\` & \`/ban\` — Expulsão e banimento auditados com verificação de segurança\n` +
+    `> \`/purge\` — Limpeza em massa de mensagens do canal\n\n` +
+    `### ⏰ Operações, Marketing & AI Studio\n` +
+    `> \`/panel\` — Console do Operador com 5 categorias aninhadas\n` +
+    `> \`/channel\` — Horários de expediente, avisos de fora do ar e trancas noturnas\n` +
+    `> \`/loyalty\` — Tiers de cashback VIP (1% a 10%) e progresso de gastos\n` +
+    `> \`/marketing\` — Flash drops com contagem regressiva e recompensas por avaliações\n` +
+    `> \`/backup\` — Snapshots de servidor e restauração de membros via OAuth2\n` +
+    `> \`/roblox\` — Calculadora de taxas 70/30 do marketplace e vínculo de conta\n` +
+    `> \`/ticket\` — Central de suporte com transcrições criptografadas\n` +
+    `> \`/verify\` — Captcha aritmético para defesa contra auto-bots\n` +
+    `> \`/ai\` — AI Studio Autônomo (Personas Neurais, RAG Learn, Prompt Sandbox)\n` +
+    `> \`/admin\` — Saúde do sistema, orçamento de autonomia e políticas\n` +
+    `> \`/task\` — Executor autônomo de metas com DAG multi-etapas`
   ));
 
   c.addSeparatorComponents(spacer(false));
   c.addActionRowComponents(
     new ActionRowBuilder().addComponents(
-      button.primary('panel:tab:commerce', '⚙️ Open Control Panel'),
-      button.neutral('store:view', '🛍️ Store'),
-      button.neutral('cart:view', '🛒 Cart'),
-      button.neutral('wallet:view', '💳 Wallet'),
-      button.neutral('ranking:view', '🏆 Top Spenders')
+      button.primary('panel:tab:commerce', '⚙️ Abrir Painel de Controle'),
+      button.neutral('store:view', '🛍️ Loja'),
+      button.neutral('cart:view', '🛒 Carrinho'),
+      button.neutral('wallet:view', '💳 Carteira'),
+      button.neutral('ranking:view', '🏆 Top Clientes')
     )
   );
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# Pure monochrome Components V2 interface · 37 active slash commands.'));
+  c.addTextDisplayComponents(text('-# Interface Components V2 Pura · 37 comandos slash ativos.'));
   return c;
 }
 
@@ -611,7 +611,7 @@ export function operatorDashboardPanel({ category = 'commerce', subtab = 'overvi
 
   const currentCatObj = categories.find((cat) => cat.value === category) || categories[0];
 
-  c.addTextDisplayComponents(text(`# CONSOLE AZURE › ${currentCatObj.label.toUpperCase()}`));
+  c.addTextDisplayComponents(text(`# CONSOLE LOOP › ${currentCatObj.label.toUpperCase()}`));
   c.addTextDisplayComponents(text(`-# Painel visual de controle corporativo · Servidor: \`${guildId}\``));
   c.addSeparatorComponents(divider(false));
 
@@ -635,7 +635,7 @@ export function operatorDashboardPanel({ category = 'commerce', subtab = 'overvi
   }
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text(`-# Azure OS v2.0 · Arquitetura Modular Aninhada · Componentes V2 Puros`));
+  c.addTextDisplayComponents(text(`-# Loop OS v2.0 · Arquitetura Modular Aninhada · Componentes V2 Puros`));
   return c;
 }
 
