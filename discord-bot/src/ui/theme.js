@@ -251,97 +251,160 @@ export function storefrontPanel({ products = [], cartItemCount = 0 }) {
 }
 
 /**
- * Build the Cart panel.
+ * Build the Cart panel matching exact high-conversion Brazilian reference architecture.
  */
-export function cartPanel({ cart, items = [], subtotalMinor = 0, currency = 'USD', expiresAt }) {
+export function cartPanel({ cart = {}, items = [], subtotalMinor = 0, originalSubtotalMinor = 0, discountPercent = 0, couponCode = null, currency = 'BRL', expiresAt, deliveryType = 'Automática' }) {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
-  c.addTextDisplayComponents(text('# SHOPPING CART'));
 
-  const totalStr = formatMoney(subtotalMinor, currency);
-  const expiryNote = expiresAt
-    ? `Stock reserved until: <t:${Math.floor(new Date(expiresAt).getTime() / 1000)}:R>`
-    : 'Items reserved for 15 minutes.';
-  c.addTextDisplayComponents(text(`-# ${expiryNote}`));
+  // Top Title Bar
+  c.addTextDisplayComponents(text('# 🛒 CARRINHO'));
   c.addSeparatorComponents(divider(false));
 
+  const totalStr = formatMoney(subtotalMinor, currency);
+  const origStr = originalSubtotalMinor && originalSubtotalMinor > subtotalMinor ? ` ~~${formatMoney(originalSubtotalMinor, currency)}~~` : '';
+  const discountBadge = discountPercent > 0 ? ` \`[${discountPercent}% de Desconto]\`` : '';
+
   if (!items.length) {
-    c.addTextDisplayComponents(text('Your cart is currently empty.\n\nBrowse the catalog to add items.'));
+    c.addTextDisplayComponents(text(
+      `### Subtotal\n` +
+      `**\`R$ 0,00\`**\n\n` +
+      `*Seu carrinho está vazio no momento.*\n` +
+      `Navegue pela loja para adicionar produtos.`
+    ));
     c.addSeparatorComponents(spacer(false));
     c.addActionRowComponents(
       new ActionRowBuilder().addComponents(
-        button.primary('store:view', '🛍️ Browse Store'),
-        button.neutral('wallet:view', '💳 My Wallet')
+        button.primary('store:view', '🛍️ Ver Loja'),
+        button.neutral('wallet:view', '💳 Minha Carteira')
       )
     );
+    c.addSeparatorComponents(divider(false));
+    c.addTextDisplayComponents(text('-# 🛡️ Ambiente Seguro · Processado pela **Azure OS ©**'));
     return c;
   }
 
-  const lines = items.map((it) => {
-    const unitPrice = formatMoney(it.priceMinor, it.currency);
-    const itemTotal = formatMoney(it.totalMinor, it.currency);
-    return `**${it.productName || it.variantName}** (x${it.quantity})\n> Unit: ${unitPrice} ${THEME.glyph.arrow} Total: **${itemTotal}**`;
-  }).join('\n\n');
-
-  c.addTextDisplayComponents(text(lines));
-  c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text(`### Total: **${totalStr}**`));
-
-  const buttons = [
-    button.primary(`checkout:prompt:${cart.id}`, '💳 Proceed to Checkout'),
-    button.danger(`cart:clear:${cart.id}`, '🗑️ Clear Cart'),
-    button.neutral('store:view', '🛍️ Continue Shopping'),
-  ];
+  // 1. Subtotal & Pricing Card
+  c.addTextDisplayComponents(text(
+    `### Subtotal${discountBadge}\n` +
+    `**\`${totalStr}\`**${origStr}`
+  ));
 
   c.addSeparatorComponents(spacer(false));
-  const row = new ActionRowBuilder().addComponents(buttons);
-  c.addActionRowComponents(row);
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      button.primary(`checkout:prompt:${cart.id || 'cart'}`, '💳 Pagar'),
+      button.neutral(`cart:coupon_modal:${cart.id || 'cart'}`, '🎟️ Cupom'),
+      button.neutral('cart:terms', '📄 Termos')
+    )
+  );
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# Transparent digital checkout with instant delivery.'));
+
+  // 2. Entrega & Items Card
+  const deliveryBadge = `\`[🚚 ${deliveryType}]\``;
+  c.addTextDisplayComponents(text(`### Entrega ${deliveryBadge}`));
+
+  items.forEach((it) => {
+    const itemPrice = formatMoney(it.priceMinor || it.unit_price_minor, currency);
+    const varName = it.variantName || it.variant_name || 'Padrão';
+    const period = it.period || 'Mensal';
+
+    c.addTextDisplayComponents(text(
+      `\`${it.quantity}x\` **${it.productName || it.name || 'Produto'}**\n` +
+      `> Valor \`[${itemPrice}]\` · Opção \`[${varName}]\` · Ciclo \`[${period}]\``
+    ));
+  });
+
+  // Coupon row if applied
+  if (couponCode) {
+    c.addSeparatorComponents(spacer(false));
+    c.addTextDisplayComponents(text(
+      `### Cupom\n` +
+      `\`[${couponCode.toUpperCase()}]\` **Aplicado com sucesso**`
+    ));
+  }
+
+  c.addSeparatorComponents(spacer(false));
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      button.neutral(`cart:edit:${cart.id || 'cart'}`, '✏️ Editar Itens'),
+      button.danger(`cart:clear:${cart.id || 'cart'}`, '🗑️ Limpar Carrinho'),
+      button.neutral('store:view', '🛍️ Continuar Comprando')
+    )
+  );
+
+  // 3. Security Trust Footer
+  c.addSeparatorComponents(divider(false));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
   return c;
 }
 
 /**
- * Build the Wallet panel.
+ * Build the Wallet panel matching exact high-conversion Brazilian reference architecture.
  */
-export function walletPanel({ wallet, transactions = [], currency = 'USD' }) {
+export function walletPanel({ wallet = {}, transactions = [], currency = 'BRL', cashbackPercent = 2 }) {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
-  c.addTextDisplayComponents(text('# DIGITAL WALLET'));
-  c.addTextDisplayComponents(text('-# Instant balance, deposits, withdrawals and buyer ledger.'));
+
+  // Top Title Bar
+  c.addTextDisplayComponents(text('# 📟 CARTEIRA'));
   c.addSeparatorComponents(divider(false));
 
-  const available = formatMoney(wallet.availableMinor, wallet.currency || currency);
-  const locked = wallet.lockedMinor > 0 ? ` (Locked in pending orders: ${formatMoney(wallet.lockedMinor, wallet.currency)})` : '';
+  const available = formatMoney(wallet.availableMinor || 0, wallet.currency || currency);
+  const cashbackBadge = `\`[💚 CASHBACK de ${cashbackPercent}%]\``;
 
-  c.addTextDisplayComponents(text(`## Available Balance: **${available}**${locked}`));
-  c.addSeparatorComponents(divider(false));
-
-  if (transactions.length) {
-    c.addTextDisplayComponents(text('### Recent Transactions'));
-    const txLines = transactions.slice(0, 5).map((t) => {
-      const sign = t.amountMinor >= 0 ? '+' : '';
-      const amtStr = `${sign}${formatMoney(t.amountMinor, t.currency)}`;
-      const timeStr = `<t:${Math.floor(new Date(t.createdAt).getTime() / 1000)}:R>`;
-      return `\`${t.type.toUpperCase()}\` **${amtStr}** — ${timeStr}`;
-    }).join('\n');
-    c.addTextDisplayComponents(text(txLines));
-  } else {
-    c.addTextDisplayComponents(text('No recent transactions on record.'));
-  }
-
-  const buttons = [
-    button.primary('wallet:deposit', '➕ Deposit Funds'),
-    button.neutral('wallet:withdraw', '➖ Withdraw'),
-    button.neutral('wallet:transfer', '💸 Transfer'),
-    button.neutral('cart:view', '🛒 View Cart'),
-  ];
+  // 1. Saldo Card
+  c.addTextDisplayComponents(text(
+    `### Saldo ${cashbackBadge}\n` +
+    `**\`${available}\`**`
+  ));
 
   c.addSeparatorComponents(spacer(false));
-  const row = new ActionRowBuilder().addComponents(buttons);
-  c.addActionRowComponents(row);
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(
+      button.neutral('wallet:deposit', '➕ Depositar'),
+      button.neutral('wallet:transfer', '↔ Transferir'),
+      button.primary('wallet:withdraw', '💵 Sacar'),
+      button.neutral('wallet:redeem_modal', '🎟️ Resgatar')
+    )
+  );
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# Wallet funds can be used for instant 1-click checkout across the server.'));
+
+  // 2. Extrato Card
+  c.addTextDisplayComponents(text(`### Extrato & Histórico de Movimentações`));
+
+  if (transactions.length) {
+    const txLines = transactions.slice(0, 4).map((t) => {
+      const isCredit = t.amountMinor >= 0;
+      const sign = isCredit ? '+' : '-';
+      const arrow = isCredit ? '↓' : '↑';
+      const amt = formatMoney(Math.abs(t.amountMinor), t.currency || currency);
+      const perk = t.type === 'cashback' ? ` +${cashbackPercent}% 💚` : t.type === 'coupon' ? ` Resgate 🎟️` : ` ${arrow}`;
+      return `> **\`${sign}\`** \`[${amt}]\` \`${t.type.toUpperCase()}\`${perk}`;
+    }).join('\n');
+
+    c.addTextDisplayComponents(text(txLines));
+  } else {
+    c.addTextDisplayComponents(text('> *Nenhuma movimentação registrada no extrato recente.*'));
+  }
+
+  c.addSeparatorComponents(spacer(false));
+
+  // Extrato Filter Dropdown
+  const filterOptions = [
+    { label: 'Todas as Transações', value: 'all', description: 'Histórico completo consolidado', default: true },
+    { label: 'Depósitos & Entradas', value: 'deposits', description: 'Recargas via PIX e transferências' },
+    { label: 'Saques & Pagamentos', value: 'withdraws', description: 'Compras efetuadas e retiradas' },
+    { label: 'Recompensas de Cashback', value: 'cashback', description: 'Bônus de fidelidade recebidos' },
+  ];
+
+  c.addActionRowComponents(
+    new ActionRowBuilder().addComponents(select.string('wallet:tx_filter', 'Filtrar extrato...', filterOptions))
+  );
+
+  // 3. Security Trust Footer
+  c.addSeparatorComponents(divider(false));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
   return c;
 }
 
