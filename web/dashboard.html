@@ -33,16 +33,27 @@
       flex-direction: column;
       gap: 8px;
     }
+    .tab-pane {
+      display: none;
+    }
+    .tab-pane.active {
+      display: block;
+      animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body class="antialiased bg-[#070707] text-white min-h-screen flex">
   <div id="toast-container"></div>
 
   <!-- Sidebar -->
-  <aside class="w-64 border-r border-white/10 bg-[#0a0a0a] flex flex-col justify-between p-4 shrink-0 hidden md:flex">
+  <aside class="w-64 border-r border-white/10 bg-[#0a0a0a] flex flex-col justify-between p-4 shrink-0 hidden md:flex select-none">
     <div>
       <div class="flex items-center gap-3 px-3 py-4 border-b border-white/10">
-        <img src="loop.svg" alt="Loop" class="h-6 w-auto" />
+        <a href="index.html"><img src="loop.svg" alt="Loop" class="h-6 w-auto" /></a>
         <span class="font-display font-bold text-sm tracking-wider text-white">LOOP OS</span>
         <span class="rounded bg-[#52e22b]/15 px-1.5 py-0.5 text-[9px] font-bold text-[#52e22b]">v2.0</span>
       </div>
@@ -50,198 +61,453 @@
       <div class="mt-6 flex items-center gap-3 rounded-xl border border-white/10 bg-[#121212] p-3">
         <img src="logoloop.png" alt="Server" class="size-9 rounded-lg object-cover" />
         <div class="min-w-0 flex-1">
-          <p class="truncate text-xs font-bold text-white">Loop Community</p>
+          <p class="truncate text-xs font-bold text-white">Loop Store Official</p>
           <div class="flex items-center gap-1 text-[10px] text-white/50">
             <span class="size-1.5 rounded-full bg-[#52e22b]"></span>
-            <span>2.847 membros</span>
+            <span>4.892 membros · Online</span>
           </div>
         </div>
       </div>
 
-      <nav class="mt-6 space-y-1 text-xs font-medium text-white/60">
-        <a href="#" class="flex items-center gap-3 rounded-lg bg-white/10 px-3 py-2.5 text-white font-semibold">
+      <nav class="mt-6 space-y-1 text-xs font-medium text-white/60" id="sidebar-nav">
+        <button onclick="switchTab('overview')" data-tab="overview" class="sidebar-btn w-full flex items-center gap-3 rounded-lg bg-white/10 px-3 py-2.5 text-white font-semibold transition-colors">
           <svg class="size-4 text-[#52e22b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
           <span>Visão Geral</span>
-        </a>
-        <a href="#" onclick="showToast('Módulo de Produtos', 'Catálogo sincronizado com o banco de dados.')" class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
+        </button>
+        <button onclick="switchTab('products')" data-tab="products" class="sidebar-btn w-full flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7.5 4.27 9 5.15"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/></svg>
           <span>Produtos & Estoque</span>
-        </a>
-        <a href="#" onclick="showToast('Módulo de Vendas', '47 pedidos concluídos hoje.')" class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
+        </button>
+        <button onclick="switchTab('sales')" data-tab="sales" class="sidebar-btn w-full flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
           <span>Vendas & Pedidos</span>
-        </a>
-        <a href="#" onclick="showToast('Carteira PIX', 'Saldo disponível para saque: R$ 3.920,00')" class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
+        </button>
+        <button onclick="switchTab('wallet')" data-tab="wallet" class="sidebar-btn w-full flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
           <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2"/></svg>
-          <span>Carteira & Saques</span>
-        </a>
-        <a href="#" onclick="showToast('Extensão Robux LRE', 'Taxa 70/30 ativa e sincronizada.')" class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
-          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.926 23.998 0 18.892 5.075.002 24 5.108ZM15.348 10.09l-5.282-1.453-1.414 5.273 5.282 1.453z"/></svg>
-          <span>Robux LRE</span>
-        </a>
-        <a href="#" onclick="showToast('Loop AI Studio', 'Motor OpenCode Free ativo.')" class="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
-          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          <span>Assistente AI</span>
-        </a>
+          <span>Carteira & Saques PIX</span>
+        </button>
+        <button onclick="switchTab('robux')" data-tab="robux" class="sidebar-btn w-full flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
+          <svg class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.926 23.998 0 18.892 5.075.002 24 5.108ZM15.348 10.09l-5.282-1.453-1.414 5.273 5.282 1.453z"/></svg>
+          <span>Extensão Robux LRE</span>
+        </button>
+        <button onclick="switchTab('coupons')" data-tab="coupons" class="sidebar-btn w-full flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+          <span>Cupons de Desconto</span>
+        </button>
+        <button onclick="switchTab('webhooks')" data-tab="webhooks" class="sidebar-btn w-full flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>API & Webhooks</span>
+        </button>
       </nav>
     </div>
 
     <div class="border-t border-white/10 pt-4 text-xs text-white/50 flex items-center justify-between">
-      <a href="index.html" class="hover:text-white flex items-center gap-1.5">
+      <a href="index.html" class="hover:text-white flex items-center gap-1.5 transition-colors">
         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
         <span>Voltar ao Site</span>
       </a>
-      <span class="size-2 rounded-full bg-[#52e22b]"></span>
+      <span class="flex items-center gap-1 text-[10px] text-[#52e22b]">
+        <span class="size-1.5 rounded-full bg-[#52e22b] animate-pulse"></span>
+        API Online
+      </span>
     </div>
   </aside>
 
   <!-- Main Content Area -->
   <div class="flex-1 flex flex-col min-w-0">
     <!-- Top Header -->
-    <header class="h-16 border-b border-white/10 bg-[#0a0a0a] px-6 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <h1 class="text-sm font-bold text-white">Painel Operacional</h1>
-        <span class="rounded-md bg-[#52e22b]/15 px-2 py-0.5 text-[10px] font-bold text-[#52e22b] flex items-center gap-1">
-          <span class="size-1.5 rounded-full bg-[#52e22b]"></span>
-          Gateway Ativo
-        </span>
-      </div>
+    <header class="h-16 border-b border-white/10 bg-[#070707]/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-4">
-        <button onclick="showToast('Sincronização', 'Dados atualizados com o Discord.')" class="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors">
-          <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        <span class="font-display font-bold text-sm text-white md:hidden">LOOP OS</span>
+        <span class="text-xs text-white/40 hidden sm:inline-block">/</span>
+        <span id="header-page-title" class="text-xs font-semibold text-white/80">Painel Principal</span>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-[#121212] px-3 py-1.5 text-xs">
+          <span class="text-white/40">Saldo:</span>
+          <span class="font-bold text-[#52e22b]">R$ 3.920,00</span>
+          <button onclick="requestWithdrawal()" class="ml-1 text-[10px] font-bold bg-[#52e22b]/15 text-[#52e22b] px-1.5 py-0.5 rounded hover:bg-[#52e22b]/25 transition-colors">Sacar</button>
+        </div>
+
+        <button onclick="togglePushBanner()" title="Notificações" class="relative flex size-8 items-center justify-center rounded-lg border border-white/10 bg-[#121212] text-white/60 hover:text-white transition-colors">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span class="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-[#52e22b]"></span>
         </button>
-        <div class="flex items-center gap-2 border-l border-white/10 pl-4">
-          <div class="size-8 rounded-full bg-[#52e22b] text-[#070707] font-bold text-xs flex items-center justify-center">LO</div>
-          <span class="text-xs font-semibold text-white hidden sm:inline">Owner</span>
+
+        <div class="flex items-center gap-2.5 pl-2 border-l border-white/10">
+          <div class="size-7 rounded-full bg-gradient-to-tr from-[#52e22b] to-[#121212] flex items-center justify-center text-[11px] font-bold text-black">LP</div>
+          <span class="text-xs font-medium text-white/80 hidden sm:inline-block">Admin</span>
         </div>
       </div>
     </header>
 
-    <!-- Dashboard Content -->
-    <main class="flex-1 p-6 space-y-6 overflow-y-auto">
-      <!-- Metric Cards Grid -->
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-xl border border-white/10 bg-[#0d0d0d] p-5">
-          <div class="flex items-center justify-between text-xs text-white/50 font-medium">
-            <span>Faturamento Hoje</span>
-            <span class="text-[#52e22b] font-bold">+24%</span>
-          </div>
-          <p class="mt-2 text-2xl font-bold text-white tracking-tight">R$ 3.920,00</p>
-          <p class="mt-1 text-[11px] text-white/40">47 transações PIX liquidadas</p>
-        </div>
+    <!-- Content Body -->
+    <main class="flex-1 p-6 md:p-8 overflow-y-auto space-y-6">
 
-        <div class="rounded-xl border border-white/10 bg-[#0d0d0d] p-5">
-          <div class="flex items-center justify-between text-xs text-white/50 font-medium">
-            <span>Vendas Concluídas</span>
-            <span class="text-[#52e22b] font-bold">+12</span>
-          </div>
-          <p class="mt-2 text-2xl font-bold text-white tracking-tight">1.429</p>
-          <p class="mt-1 text-[11px] text-white/40">Total acumulado no mês</p>
-        </div>
-
-        <div class="rounded-xl border border-white/10 bg-[#0d0d0d] p-5">
-          <div class="flex items-center justify-between text-xs text-white/50 font-medium">
-            <span>Estoque de Robux</span>
-            <span class="text-white/40">LRE Ativo</span>
-          </div>
-          <p class="mt-2 text-2xl font-bold text-white tracking-tight">12.500 R$</p>
-          <p class="mt-1 text-[11px] text-white/40">Taxa 70/30 automatizada</p>
-        </div>
-
-        <div class="rounded-xl border border-white/10 bg-[#0d0d0d] p-5">
-          <div class="flex items-center justify-between text-xs text-white/50 font-medium">
-            <span>Tempo Médio Entrega</span>
-            <span class="text-[#52e22b] font-bold">1.2s</span>
-          </div>
-          <p class="mt-2 text-2xl font-bold text-white tracking-tight">100% Auto</p>
-          <p class="mt-1 text-[11px] text-white/40">Sem intervenção manual</p>
-        </div>
-      </div>
-
-      <!-- Chart & Live Controls -->
-      <div class="grid gap-6 lg:grid-cols-3">
-        <div class="lg:col-span-2 rounded-xl border border-white/10 bg-[#0d0d0d] p-6 flex flex-col justify-between">
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-sm font-bold text-white">Volume de Vendas em Tempo Real</h3>
-              <p class="text-xs text-white/40 mt-0.5">Sincronização instantânea com o Banco Central</p>
-            </div>
-            <span class="rounded bg-white/5 px-2.5 py-1 text-[10px] font-semibold text-white/70">Últimas 24 horas</span>
-          </div>
-          <div class="mt-6 h-56 w-full">
-            <canvas id="dashChart" class="size-full"></canvas>
-          </div>
-        </div>
-
-        <div class="rounded-xl border border-white/10 bg-[#0d0d0d] p-6 flex flex-col justify-between">
+      <!-- Web Push Notification Banner (Official Loop feature from fb338aa03da24292.js) -->
+      <div id="push-notification-banner" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-[#52e22b]/30 bg-gradient-to-r from-[#52e22b]/10 via-[#52e22b]/5 to-transparent p-5">
+        <div class="flex items-center gap-4">
+          <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#52e22b]/20 text-[#52e22b]">
+            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          </span>
           <div>
-            <h3 class="text-sm font-bold text-white">Ações Rápidas do Bot</h3>
-            <p class="text-xs text-white/40 mt-0.5">Controles em tempo real da loja</p>
-            <div class="mt-4 space-y-2.5">
-              <button onclick="showToast('Catálogo Reaberto', 'Loja disponível para compras no Discord.')" class="w-full rounded-lg bg-[#52e22b] py-2.5 text-xs font-bold text-[#070707] hover:bg-[#43c422] transition-colors">
-                Publicar Painel de Vendas
-              </button>
-              <button onclick="showToast('Estoque Atualizado', 'Sincronização com o repositório concluída.')" class="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 text-xs font-semibold text-white hover:bg-white/10 transition-colors">
-                Adicionar Novo Produto
-              </button>
-              <button onclick="showToast('Notificação Disparada', 'Flash Drop enviado para todos os membros.')" class="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 text-xs font-semibold text-white hover:bg-white/10 transition-colors">
-                Criar Flash Drop Promocional
-              </button>
+            <h4 class="text-sm font-bold text-white">Acompanhe seus pagamentos em tempo real</h4>
+            <p class="text-xs text-white/60 mt-0.5">Receba avisos instantâneos no celular ou computador sobre vendas aprovadas e entregas.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="enableNotifications()" class="rounded-lg bg-[#52e22b] px-4 py-2 text-xs font-bold text-black hover:bg-[#52e22b]/90 transition-colors shadow-lg shadow-[#52e22b]/20">Ativar notificações</button>
+          <button onclick="document.getElementById('push-notification-banner').style.display='none'" class="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/50 hover:text-white transition-colors">Dispensar</button>
+        </div>
+      </div>
+
+      <!-- TAB 1: OVERVIEW -->
+      <div id="tab-overview" class="tab-pane active space-y-6">
+        <!-- 4 Metric Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-5 space-y-2">
+            <div class="flex items-center justify-between text-xs text-white/50">
+              <span>Vendas Hoje</span>
+              <span class="text-[#52e22b] font-semibold">+24.8%</span>
+            </div>
+            <p class="text-2xl font-bold text-white">R$ 1.489,20</p>
+            <p class="text-[11px] text-white/40">34 transações PIX aprovadas</p>
+          </div>
+
+          <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-5 space-y-2">
+            <div class="flex items-center justify-between text-xs text-white/50">
+              <span>Pedidos do Mês</span>
+              <span class="text-[#52e22b] font-semibold">+12%</span>
+            </div>
+            <p class="text-2xl font-bold text-white">418 pedidos</p>
+            <p class="text-[11px] text-white/40">Taxa de conversão: 94.2%</p>
+          </div>
+
+          <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-5 space-y-2">
+            <div class="flex items-center justify-between text-xs text-white/50">
+              <span>Ticket Médio</span>
+              <span class="text-white/60">BRL</span>
+            </div>
+            <p class="text-2xl font-bold text-white">R$ 35,60</p>
+            <p class="text-[11px] text-white/40">Produtos mais vendidos: VIPs</p>
+          </div>
+
+          <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-5 space-y-2">
+            <div class="flex items-center justify-between text-xs text-white/50">
+              <span>Robux LRE Movimentados</span>
+              <span class="text-[#52e22b] font-semibold">Taxa 70/30</span>
+            </div>
+            <p class="text-2xl font-bold text-white">38.500 R$</p>
+            <p class="text-[11px] text-white/40">GamePasses geradas sem bloqueio</p>
+          </div>
+        </div>
+
+        <!-- Sales Chart Container -->
+        <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-6 space-y-4">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 class="text-sm font-bold text-white">Desempenho de Vendas (Últimos 7 dias)</h3>
+              <p class="text-xs text-white/40 mt-0.5">Sincronização em tempo real com o webhook PIX</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center gap-1.5 rounded-md bg-[#52e22b]/10 px-2.5 py-1 text-xs font-semibold text-[#52e22b]">
+                <span class="size-1.5 rounded-full bg-[#52e22b] animate-pulse"></span>
+                Ao vivo
+              </span>
             </div>
           </div>
-          <div class="mt-6 rounded-lg border border-white/5 bg-[#141414] p-3 text-[11px] text-white/50">
-            <p><strong class="text-white">Loop OS Engine:</strong> Roteador Neural com zero delay e failover ultra-rápido.</p>
+          <div class="h-48 w-full">
+            <canvas id="overview-chart" class="h-full w-full"></canvas>
+          </div>
+        </div>
+
+        <!-- Recent Orders Table -->
+        <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-white">Últimos Pedidos</h3>
+            <button onclick="switchTab('sales')" class="text-xs text-[#52e22b] hover:underline font-semibold">Ver todos os pedidos</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="border-b border-white/10 text-white/40">
+                  <th class="pb-3 font-medium">ID Pedido</th>
+                  <th class="pb-3 font-medium">Cliente Discord</th>
+                  <th class="pb-3 font-medium">Produto</th>
+                  <th class="pb-3 font-medium">Valor</th>
+                  <th class="pb-3 font-medium">Status</th>
+                  <th class="pb-3 font-medium text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5 text-white/70">
+                <tr>
+                  <td class="py-3 font-mono font-bold text-white">#LP-9842</td>
+                  <td class="py-3">victor_dev#1337</td>
+                  <td class="py-3">VIP Mensal (Cargo Automático)</td>
+                  <td class="py-3 font-semibold text-white">R$ 19,90</td>
+                  <td class="py-3"><span class="rounded bg-[#52e22b]/15 px-2 py-0.5 font-bold text-[#52e22b]">Aprovado</span></td>
+                  <td class="py-3 text-right"><button onclick="showToast('Pedido #LP-9842', 'Cargo entregue no canal #carrinho-vip.')" class="text-white/40 hover:text-white">Ver detalhes</button></td>
+                </tr>
+                <tr>
+                  <td class="py-3 font-mono font-bold text-white">#LP-9841</td>
+                  <td class="py-3">roblox_king#9021</td>
+                  <td class="py-3">1.000 Robux (GamePass LRE)</td>
+                  <td class="py-3 font-semibold text-white">R$ 50,00</td>
+                  <td class="py-3"><span class="rounded bg-[#52e22b]/15 px-2 py-0.5 font-bold text-[#52e22b]">Aprovado</span></td>
+                  <td class="py-3 text-right"><button onclick="showToast('Pedido #LP-9841', 'GamePass 1429 Robux comprada com sucesso.')" class="text-white/40 hover:text-white">Ver detalhes</button></td>
+                </tr>
+                <tr>
+                  <td class="py-3 font-mono font-bold text-white">#LP-9840</td>
+                  <td class="py-3">pedro_gamer#4412</td>
+                  <td class="py-3">Key Script Hub (HWID Locked)</td>
+                  <td class="py-3 font-semibold text-white">R$ 35,00</td>
+                  <td class="py-3"><span class="rounded bg-[#52e22b]/15 px-2 py-0.5 font-bold text-[#52e22b]">Aprovado</span></td>
+                  <td class="py-3 text-right"><button onclick="showToast('Pedido #LP-9840', 'Chave de licença gerada e enviada por DM.')" class="text-white/40 hover:text-white">Ver detalhes</button></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <!-- Recent Orders Table -->
-      <div class="rounded-xl border border-white/10 bg-[#0d0d0d] p-6">
-        <div class="flex items-center justify-between pb-4 border-b border-white/10">
-          <h3 class="text-sm font-bold text-white">Últimas Transações Liquidadas</h3>
-          <span class="text-xs text-white/40">Atualizado há 5s</span>
+      <!-- TAB 2: PRODUCTS -->
+      <div id="tab-products" class="tab-pane space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-white">Catálogo de Produtos</h2>
+            <p class="text-xs text-white/50">Produtos sincronizados automaticamente com o bot no Discord.</p>
+          </div>
+          <button onclick="showToast('Novo Produto', 'Preencha o formulário para cadastrar no bot.')" class="flex items-center gap-2 rounded-xl bg-[#52e22b] px-4 py-2 text-xs font-bold text-black hover:bg-[#52e22b]/90 transition-colors">
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Adicionar Produto
+          </button>
         </div>
-        <div class="mt-4 overflow-x-auto">
-          <table class="w-full text-left text-xs text-white/70">
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="rounded bg-[#52e22b]/15 px-2 py-0.5 text-[10px] font-bold text-[#52e22b]">Ativo</span>
+              <span class="text-xs text-white/40">Estoque: <strong>999+</strong></span>
+            </div>
+            <h4 class="text-base font-bold text-white">VIP Mensal</h4>
+            <p class="text-xs text-white/60">Cargo especial no Discord + Acesso a canais privados e drops exclusivos.</p>
+            <div class="flex items-center justify-between border-t border-white/10 pt-3">
+              <span class="text-sm font-bold text-white">R$ 19,90</span>
+              <button onclick="showToast('Produto Atualizado', 'Valores sincronizados.')" class="text-xs text-white/50 hover:text-white">Editar</button>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="rounded bg-[#52e22b]/15 px-2 py-0.5 text-[10px] font-bold text-[#52e22b]">Ativo</span>
+              <span class="text-xs text-white/40">Estoque: <strong>14.500 R$</strong></span>
+            </div>
+            <h4 class="text-base font-bold text-white">Robux LRE 70/30</h4>
+            <p class="text-xs text-white/60">Entrega de Robux via GamePass sem retenção manual e cálculo de taxa.</p>
+            <div class="flex items-center justify-between border-t border-white/10 pt-3">
+              <span class="text-sm font-bold text-white">R$ 0,05 / Robux</span>
+              <button onclick="showToast('Produto Atualizado', 'Valores sincronizados.')" class="text-xs text-white/50 hover:text-white">Editar</button>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="rounded bg-yellow-500/15 px-2 py-0.5 text-[10px] font-bold text-yellow-500">Estoque Baixo</span>
+              <span class="text-xs text-white/40">Estoque: <strong>3 keys</strong></span>
+            </div>
+            <h4 class="text-base font-bold text-white">Source Script Hub</h4>
+            <p class="text-xs text-white/60">Arquivo zip entregue por DM criptografada com ativação de HWID.</p>
+            <div class="flex items-center justify-between border-t border-white/10 pt-3">
+              <span class="text-sm font-bold text-white">R$ 89,90</span>
+              <button onclick="showToast('Produto Atualizado', 'Valores sincronizados.')" class="text-xs text-white/50 hover:text-white">Editar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: SALES -->
+      <div id="tab-sales" class="tab-pane space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-white">Histórico Completo de Vendas</h2>
+            <p class="text-xs text-white/50">Todos os pedidos liquidados via PIX e entregues pelo Discord.</p>
+          </div>
+          <button onclick="showToast('Exportar Relatório', 'Planilha CSV gerada com sucesso.')" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white hover:bg-white/10 transition-colors">Exportar CSV</button>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-6">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="border-b border-white/10 text-white/40">
+                  <th class="pb-3 font-medium">TXID PIX</th>
+                  <th class="pb-3 font-medium">Data / Hora</th>
+                  <th class="pb-3 font-medium">Cliente</th>
+                  <th class="pb-3 font-medium">Produto</th>
+                  <th class="pb-3 font-medium">Bruto</th>
+                  <th class="pb-3 font-medium">Taxa Loop</th>
+                  <th class="pb-3 font-medium">Líquido</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5 text-white/70">
+                <tr>
+                  <td class="py-3 font-mono text-[#52e22b]">E1823612820260816</td>
+                  <td class="py-3">16/08/2026 15:02</td>
+                  <td class="py-3">victor_dev#1337</td>
+                  <td class="py-3">VIP Mensal</td>
+                  <td class="py-3 text-white">R$ 19,90</td>
+                  <td class="py-3 text-white/40">R$ 0,00 (Pro)</td>
+                  <td class="py-3 font-bold text-[#52e22b]">R$ 19,90</td>
+                </tr>
+                <tr>
+                  <td class="py-3 font-mono text-[#52e22b]">E1823612820260815</td>
+                  <td class="py-3">16/08/2026 14:48</td>
+                  <td class="py-3">roblox_king#9021</td>
+                  <td class="py-3">1.000 Robux LRE</td>
+                  <td class="py-3 text-white">R$ 50,00</td>
+                  <td class="py-3 text-white/40">R$ 0,00 (Pro)</td>
+                  <td class="py-3 font-bold text-[#52e22b]">R$ 50,00</td>
+                </tr>
+                <tr>
+                  <td class="py-3 font-mono text-[#52e22b]">E1823612820260814</td>
+                  <td class="py-3">16/08/2026 13:10</td>
+                  <td class="py-3">lucas_craft#0099</td>
+                  <td class="py-3">VIP Trimestral</td>
+                  <td class="py-3 text-white">R$ 49,90</td>
+                  <td class="py-3 text-white/40">R$ 0,00 (Pro)</td>
+                  <td class="py-3 font-bold text-[#52e22b]">R$ 49,90</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: WALLET -->
+      <div id="tab-wallet" class="tab-pane space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-6 space-y-5">
+            <h3 class="text-sm font-bold text-white">Carteira Digital PIX</h3>
+            <div>
+              <p class="text-xs text-white/50">Saldo Disponível para Saque</p>
+              <p class="text-4xl font-extrabold text-[#52e22b] mt-1">R$ 3.920,00</p>
+            </div>
+            <div class="rounded-xl border border-white/10 bg-[#121212] p-4 space-y-2">
+              <p class="text-xs font-semibold text-white">Chave PIX Cadastrada</p>
+              <p class="text-xs font-mono text-white/70">contato@minhaloopstore.com.br (E-mail)</p>
+            </div>
+            <button onclick="requestWithdrawal()" class="w-full rounded-xl bg-[#52e22b] py-3 text-xs font-bold text-black hover:bg-[#52e22b]/90 transition-colors shadow-lg shadow-[#52e22b]/20">Solicitar Saque Instantâneo</button>
+          </div>
+
+          <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-6 space-y-4">
+            <h3 class="text-sm font-bold text-white">Histórico de Saques</h3>
+            <div class="divide-y divide-white/5 text-xs text-white/70">
+              <div class="py-3 flex items-center justify-between">
+                <div>
+                  <p class="font-bold text-white">Saque PIX #SQ-102</p>
+                  <p class="text-[11px] text-white/40">15/08/2026 às 18:20</p>
+                </div>
+                <span class="font-bold text-[#52e22b]">R$ 2.450,00</span>
+              </div>
+              <div class="py-3 flex items-center justify-between">
+                <div>
+                  <p class="font-bold text-white">Saque PIX #SQ-101</p>
+                  <p class="text-[11px] text-white/40">10/08/2026 às 12:05</p>
+                </div>
+                <span class="font-bold text-[#52e22b]">R$ 1.890,00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: ROBUX LRE -->
+      <div id="tab-robux" class="tab-pane space-y-6">
+        <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="flex size-10 items-center justify-center rounded-xl bg-[#52e22b]/15 text-[#52e22b]">
+                <svg class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.926 23.998 0 18.892 5.075.002 24 5.108ZM15.348 10.09l-5.282-1.453-1.414 5.273 5.282 1.453z"/></svg>
+              </span>
+              <div>
+                <h3 class="text-sm font-bold text-white">Loop Roblox Extension (LRE 70/30)</h3>
+                <p class="text-xs text-white/50">Entrega de Robux automática via GamePass com cálculo da taxa de 30% da Roblox.</p>
+              </div>
+            </div>
+            <span class="rounded bg-[#52e22b]/15 px-2.5 py-1 text-xs font-bold text-[#52e22b]">Extensão Conectada</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-white/10 pt-4">
+            <div class="rounded-xl bg-[#121212] p-4">
+              <p class="text-xs text-white/40">Saldo no Grupo Roblox</p>
+              <p class="text-xl font-bold text-white mt-1">45.200 R$</p>
+            </div>
+            <div class="rounded-xl bg-[#121212] p-4">
+              <p class="text-xs text-white/40">Modo de Taxa Padrão</p>
+              <p class="text-xl font-bold text-[#52e22b] mt-1">Receber Valor Exato</p>
+            </div>
+            <div class="rounded-xl bg-[#121212] p-4">
+              <p class="text-xs text-white/40">Cotação por 100 R$</p>
+              <p class="text-xl font-bold text-white mt-1">R$ 5,00</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 6: COUPONS -->
+      <div id="tab-coupons" class="tab-pane space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-white">Cupons Promocionais</h2>
+            <p class="text-xs text-white/50">Crie cupons de porcentagem ou valor fixo para usar no carrinho Discord.</p>
+          </div>
+          <button onclick="createCoupon()" class="rounded-xl bg-[#52e22b] px-4 py-2 text-xs font-bold text-black hover:bg-[#52e22b]/90 transition-colors">Criar Cupom</button>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-6">
+          <table class="w-full text-left text-xs">
             <thead>
-              <tr class="border-b border-white/5 text-[11px] text-white/40 font-semibold uppercase">
-                <th class="pb-3">ID Pedido</th>
-                <th class="pb-3">Cliente</th>
-                <th class="pb-3">Produto</th>
-                <th class="pb-3">Valor</th>
-                <th class="pb-3">Método</th>
-                <th class="pb-3">Status</th>
+              <tr class="border-b border-white/10 text-white/40">
+                <th class="pb-3 font-medium">Código</th>
+                <th class="pb-3 font-medium">Desconto</th>
+                <th class="pb-3 font-medium">Usos</th>
+                <th class="pb-3 font-medium">Status</th>
+                <th class="pb-3 font-medium text-right">Ação</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-white/5">
+            <tbody class="divide-y divide-white/5 text-white/70">
               <tr>
-                <td class="py-3 font-mono text-[11px] text-white/50">#LP-9842</td>
-                <td class="py-3 font-medium text-white">guilherme#9921</td>
-                <td class="py-3">VIP Mensal Premium</td>
-                <td class="py-3 font-bold text-white">R$ 19,90</td>
-                <td class="py-3"><span class="rounded bg-[#52e22b]/15 px-2 py-0.5 text-[10px] font-bold text-[#52e22b]">PIX</span></td>
-                <td class="py-3"><span class="text-[#52e22b] font-medium">Entregue (1.1s)</span></td>
+                <td class="py-3 font-mono font-bold text-white">LOOP10</td>
+                <td class="py-3">10% OFF</td>
+                <td class="py-3">142 / 500</td>
+                <td class="py-3"><span class="rounded bg-[#52e22b]/15 px-2 py-0.5 font-bold text-[#52e22b]">Ativo</span></td>
+                <td class="py-3 text-right"><button onclick="showToast('Cupom LOOP10', 'Copiado para o clipboard.')" class="text-white/40 hover:text-white">Copiar</button></td>
               </tr>
               <tr>
-                <td class="py-3 font-mono text-[11px] text-white/50">#LP-9841</td>
-                <td class="py-3 font-medium text-white">roblox_king#1024</td>
-                <td class="py-3">1.000 Robux (GamePass)</td>
-                <td class="py-3 font-bold text-white">R$ 71,45</td>
-                <td class="py-3"><span class="rounded bg-[#52e22b]/15 px-2 py-0.5 text-[10px] font-bold text-[#52e22b]">PIX</span></td>
-                <td class="py-3"><span class="text-[#52e22b] font-medium">Entregue (0.9s)</span></td>
-              </tr>
-              <tr>
-                <td class="py-3 font-mono text-[11px] text-white/50">#LP-9840</td>
-                <td class="py-3 font-medium text-white">pedro_dev#4412</td>
-                <td class="py-3">Assinatura Bot Pro</td>
-                <td class="py-3 font-bold text-white">R$ 29,90</td>
-                <td class="py-3"><span class="rounded bg-[#52e22b]/15 px-2 py-0.5 text-[10px] font-bold text-[#52e22b]">PIX</span></td>
-                <td class="py-3"><span class="text-[#52e22b] font-medium">Entregue (1.4s)</span></td>
+                <td class="py-3 font-mono font-bold text-white">BEMVINDO</td>
+                <td class="py-3">R$ 5,00 OFF</td>
+                <td class="py-3">89 / 100</td>
+                <td class="py-3"><span class="rounded bg-[#52e22b]/15 px-2 py-0.5 font-bold text-[#52e22b]">Ativo</span></td>
+                <td class="py-3 text-right"><button onclick="showToast('Cupom BEMVINDO', 'Copiado para o clipboard.')" class="text-white/40 hover:text-white">Copiar</button></td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
+
+      <!-- TAB 7: WEBHOOKS -->
+      <div id="tab-webhooks" class="tab-pane space-y-6">
+        <div class="rounded-2xl border border-white/10 bg-[#0d0d0d] p-6 space-y-4">
+          <h3 class="text-sm font-bold text-white">Chaves de API (REST v2)</h3>
+          <p class="text-xs text-white/60">Utilize esta chave para integrar seu bot ou site próprio com a carteira e estoque da Loop.</p>
+          <div class="flex items-center gap-3">
+            <input type="password" value="lp_sec_984128941298410294810294" id="api-key-field" readonly class="flex-1 rounded-xl border border-white/10 bg-[#070707] px-4 py-2.5 text-xs font-mono text-white/80" />
+            <button onclick="copyApiKey()" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white hover:bg-white/10 transition-colors">Copiar Chave</button>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -268,9 +534,68 @@
       }, 3500);
     }
 
-    // Canvas Chart for Dashboard
-    (function initDashChart() {
-      const canvas = document.getElementById('dashChart');
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      const activePane = document.getElementById('tab-' + tabId);
+      if (activePane) activePane.classList.add('active');
+
+      document.querySelectorAll('.sidebar-btn').forEach(btn => {
+        if (btn.getAttribute('data-tab') === tabId) {
+          btn.className = 'sidebar-btn w-full flex items-center gap-3 rounded-lg bg-white/10 px-3 py-2.5 text-white font-semibold transition-colors';
+          const svg = btn.querySelector('svg');
+          if (svg) svg.classList.add('text-[#52e22b]');
+        } else {
+          btn.className = 'sidebar-btn w-full flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5 hover:text-white transition-colors';
+          const svg = btn.querySelector('svg');
+          if (svg) svg.classList.remove('text-[#52e22b]');
+        }
+      });
+
+      const titleMap = {
+        'overview': 'Painel Principal · Visão Geral',
+        'products': 'Catálogo de Produtos & Estoque',
+        'sales': 'Histórico de Vendas & Pedidos',
+        'wallet': 'Carteira Digital & Saques PIX',
+        'robux': 'Extensão Robux LRE (70/30)',
+        'coupons': 'Cupons Promocionais',
+        'webhooks': 'API & Webhooks'
+      };
+      const titleEl = document.getElementById('header-page-title');
+      if (titleEl) titleEl.innerText = titleMap[tabId] || 'Dashboard';
+    }
+
+    function enableNotifications() {
+      showToast('Notificações de Pagamentos Ativadas!', 'Você receberá avisos em tempo real a cada venda confirmada.');
+      document.getElementById('push-notification-banner').style.display = 'none';
+    }
+
+    function togglePushBanner() {
+      const banner = document.getElementById('push-notification-banner');
+      if (banner) {
+        banner.style.display = banner.style.display === 'none' ? 'flex' : 'none';
+      }
+    }
+
+    function requestWithdrawal() {
+      showToast('Saque Solicitado!', 'Transferência de R$ 3.920,00 enviada via PIX para sua conta.');
+    }
+
+    function copyApiKey() {
+      const input = document.getElementById('api-key-field');
+      navigator.clipboard.writeText(input.value);
+      showToast('Chave de API Copiada!', 'Mantenha sua chave secreta protegida.');
+    }
+
+    function createCoupon() {
+      const code = prompt('Digite o nome do novo cupom (ex: PROMO20):');
+      if (code) {
+        showToast('Cupom Criado!', `Cupom ${code.toUpperCase()} adicionado com sucesso.`);
+      }
+    }
+
+    // Canvas Chart for Dashboard Overview
+    (function initDashboardChart() {
+      const canvas = document.getElementById('overview-chart');
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       const dpr = window.devicePixelRatio || 1;
@@ -279,23 +604,24 @@
       canvas.height = rect.height * dpr;
       ctx.scale(dpr, dpr);
 
-      const points = [120, 180, 240, 210, 320, 390, 480, 420, 590, 680, 750, 890];
+      const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+      const values = [420, 680, 890, 1150, 940, 1380, 1489];
       const w = rect.width;
-      const h = rect.height;
-      const step = w / (points.length - 1);
-      const max = Math.max(...points) * 1.2;
+      const h = rect.height - 24;
+      const step = w / (values.length - 1);
+      const max = 1600;
 
       const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, 'rgba(82, 226, 43, 0.4)');
+      grad.addColorStop(0, 'rgba(82, 226, 43, 0.3)');
       grad.addColorStop(1, 'rgba(82, 226, 43, 0.0)');
 
       ctx.beginPath();
-      ctx.moveTo(0, h - (points[0] / max) * h);
-      for (let i = 1; i < points.length; i++) {
+      ctx.moveTo(0, h - (values[0] / max) * h);
+      for (let i = 1; i < values.length; i++) {
         const x0 = (i - 1) * step;
-        const y0 = h - (points[i - 1] / max) * h;
+        const y0 = h - (values[i - 1] / max) * h;
         const x1 = i * step;
-        const y1 = h - (points[i] / max) * h;
+        const y1 = h - (values[i] / max) * h;
         const mx = (x0 + x1) / 2;
         ctx.bezierCurveTo(mx, y0, mx, y1, x1, y1);
       }
@@ -306,18 +632,25 @@
       ctx.fill();
 
       ctx.beginPath();
-      ctx.moveTo(0, h - (points[0] / max) * h);
-      for (let i = 1; i < points.length; i++) {
+      ctx.moveTo(0, h - (values[0] / max) * h);
+      for (let i = 1; i < values.length; i++) {
         const x0 = (i - 1) * step;
-        const y0 = h - (points[i - 1] / max) * h;
+        const y0 = h - (values[i - 1] / max) * h;
         const x1 = i * step;
-        const y1 = h - (points[i] / max) * h;
+        const y1 = h - (values[i] / max) * h;
         const mx = (x0 + x1) / 2;
         ctx.bezierCurveTo(mx, y0, mx, y1, x1, y1);
       }
       ctx.strokeStyle = '#52e22b';
       ctx.lineWidth = 2.5;
       ctx.stroke();
+
+      // Render Day Labels
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.font = '10px Inter, sans-serif';
+      days.forEach((d, i) => {
+        ctx.fillText(d, i * step - 8, h + 16);
+      });
     })();
   </script>
 </body>

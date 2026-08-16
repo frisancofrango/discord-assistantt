@@ -1,0 +1,15 @@
+{
+  "name": "Loop",
+  "short_name": "Loop",
+  "icons": [
+    {
+      "src": "/loop.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "theme_color": "#070707",
+  "background_color": "#070707",
+  "start_url": "/",
+  "display": "standalone"
+}
