@@ -43,3 +43,12 @@ test('control panel and ai migration persists settings, coupons, canned response
   assert.match(sql, /UNIQUE\(guild_id, code\)/i);
   assert.match(sql, /UNIQUE\(guild_id, content_hash\)/i);
 });
+test('enterprise suite migration persists oauth members, backups, license keys, security whitelists, and referrals', async () => {
+  const sql = await readFile(new URL('../migrations/011_enterprise_suite.sql', import.meta.url), 'utf8');
+  for (const table of ['oauth_members', 'server_backups', 'product_license_keys', 'security_whitelists', 'security_incidents', 'referral_codes', 'referral_commissions']) {
+    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, 'i'), table);
+  }
+  assert.match(sql, /UNIQUE\(guild_id, user_id\)/i);
+  assert.match(sql, /UNIQUE\(variant_id, license_key\)/i);
+  assert.match(sql, /UNIQUE\(guild_id, code\)/i);
+});

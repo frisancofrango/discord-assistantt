@@ -514,11 +514,12 @@ export function operatorDashboardPanel({ tab = 'commerce', guildId, data = {}, s
 
   // Navigation Dropdown
   const navOptions = [
-    { label: '🛍️ Commerce & Products', value: 'commerce', description: 'Catalog, live inventory, stock adjusters & coupons', default: tab === 'commerce' },
-    { label: '💳 Digital Wallet & Ledger', value: 'wallet', description: 'Member balances, bonus grants, escrow liquidity', default: tab === 'wallet' },
+    { label: '🛍️ Commerce & Products', value: 'commerce', description: 'Catalog, live inventory, keypool & coupons', default: tab === 'commerce' },
+    { label: '💳 Digital Wallet & Economy', value: 'wallet', description: 'Member balances, bonuses, affiliate earnings', default: tab === 'wallet' },
     { label: '🤖 Autonomous AI Studio', value: 'ai', description: 'Personas, knowledge ingestion, prompt sandbox & autonomy', default: tab === 'ai' },
-    { label: '🎫 Support & Ticket Desk', value: 'tickets', description: 'Live ticket queue, SLA metrics, canned responses & staff transfer', default: tab === 'tickets' },
-    { label: '🛡️ Security Fortress', value: 'security', description: 'Anti-raid shield levels, verification type & auto-mod', default: tab === 'security' },
+    { label: '🎫 Support & Ticket Desk', value: 'tickets', description: 'Live ticket queue, SLA metrics, canned responses & transcripts', default: tab === 'tickets' },
+    { label: '🛡️ Security Fortress', value: 'security', description: 'Anti-nuke rate limiters, whitelist & emergency lockdown', default: tab === 'security' },
+    { label: '🔄 Server & Member Backups', value: 'backups', description: 'Server snapshots, 1-click restore & OAuth2 member migration', default: tab === 'backups' },
     { label: '🎮 Roblox Matrix', value: 'roblox', description: '70/30 fee calculator, gamepass sync & user lookup', default: tab === 'roblox' },
     { label: '📊 Growth & Intelligence', value: 'analytics', description: 'Revenue graphs, AOV, order volume & customer retention', default: tab === 'analytics' },
   ];
@@ -539,6 +540,8 @@ export function operatorDashboardPanel({ tab = 'commerce', guildId, data = {}, s
     appendTicketsTab(c, data);
   } else if (tab === 'security') {
     appendSecurityTab(c, data, settings);
+  } else if (tab === 'backups') {
+    appendBackupsTab(c, data);
   } else if (tab === 'roblox') {
     appendRobloxTab(c, data);
   } else if (tab === 'analytics') {
@@ -683,6 +686,28 @@ function appendSecurityTab(c, { quarantinedCount = 0 }, settings = {}) {
   const buttons = [
     button.primary('panel:security:quarantine_view', '🚨 Quarantine Log'),
     button.neutral('verify:rules:demo', '🧪 Test Verification'),
+  ];
+  c.addSeparatorComponents(spacer(false));
+  c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));
+}
+
+function appendBackupsTab(c, { totalBackups = 0, oauthMembers = 0, activeTokens = 0 }) {
+  c.addTextDisplayComponents(text(
+    `## 🔄 Server & Member Backup Engine\n` +
+    `Saved Template Backups: **${totalBackups}**\n` +
+    `OAuth2 Backed-up Members: **${oauthMembers}** (${activeTokens} active tokens)`
+  ));
+  c.addSeparatorComponents(spacer(false));
+
+  c.addTextDisplayComponents(text(
+    `### Disaster Recovery Operations\n` +
+    `Create full server JSON snapshots or view OAuth2 member restore statistics:`
+  ));
+
+  const buttons = [
+    button.primary('panel:backup:create_modal', '📸 Take Server Snapshot'),
+    button.neutral('panel:backup:list', '📋 List Saved Backups'),
+    button.neutral('panel:backup:oauth_stats', '👥 OAuth Member Stats'),
   ];
   c.addSeparatorComponents(spacer(false));
   c.addActionRowComponents(new ActionRowBuilder().addComponents(buttons));

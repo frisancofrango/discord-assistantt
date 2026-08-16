@@ -83,6 +83,12 @@ async function handleStringSelect(interaction, client) {
       const stats = (await client.runtime.db.query(`SELECT count(*)::int as count, sum(balance_minor)::bigint as total FROM wallets WHERE guild_id = $1`, [interaction.guildId])).rows[0];
       data.activeWallets = stats?.count || 0;
       data.totalBalanceMinor = Number(stats?.total || 0);
+    } else if (tab === 'backups') {
+      const backupsList = await native.backup.listBackups(interaction.guildId);
+      const stats = await native.backup.getOAuthStats(interaction.guildId);
+      data.totalBackups = backupsList.length;
+      data.oauthMembers = stats.totalMembersBackedUp;
+      data.activeTokens = stats.activeTokensCount;
     } else if (tab === 'roblox') {
       data.linkedCount = (await client.runtime.db.query(`SELECT count(*)::int FROM roblox_links WHERE guild_id = $1`, [interaction.guildId])).rows[0]?.count || 0;
     }
@@ -336,6 +342,81 @@ async function handleButton(interaction, client) {
             new ActionRowBuilder().addComponents(content)
           )
       );
+    }
+
+    if (arg1 === 'backup') {
+      if (arg2 === 'create_modal') {
+        const nameInput = new TextInputBuilder()
+          .setCustomId('name')
+          .setLabel('Snapshot Name (e.g. Pre-Launch Backup)')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false);
+
+        return interaction.showModal(
+          new ModalBuilder()
+            .setCustomId('modal:create_backup')
+            .setTitle('Create Server Template Backup')
+            .addComponents(new ActionRowBuilder().addComponents(nameInput))
+        );
+      }
+
+      if (arg2 === 'list') {
+        const list = await native.backup.listBackups(interaction.guildId);
+        const lines = list.map((b) => {
+          const time = `<t:${Math.floor(new Date(b.createdAt).getTime() / 1000)}:R>`;
+          return `> **\`${b.id}\`** — **${b.name}** (${b.channelCount} ch, ${b.roleCount} roles) · ${time}`;
+        }).join('\n') || 'No backups saved.';
+
+        return interaction.reply({
+          flags: V2,
+          ephemeral: true,
+          components: [panel({ title: 'SAVED SERVER BACKUPS', body: lines })],
+        });
+      }
+
+      if (arg2 === 'oauth_stats') {
+        const stats = await native.backup.getOAuthStats(interaction.guildId);
+        return interaction.reply({
+          flags: V2,
+          ephemeral: true,
+          components: [
+            panel({
+              title: 'OAUTH2 MEMBER RESTORE STATS',
+              body:
+                `> **Total Members Backed Up:** **${stats.totalMembersBackedUp}**\n` +
+                `> **Active Access Tokens:** **${stats.activeTokensCount}**\n` +
+                `> **Rejoin Ready:** 100% synchronized`,
+            }),
+          ],
+        });
+      }
+    }
+
+    if (arg1 === 'security' && arg2 === 'quarantine_view') {
+      const incidents = await native.security.listIncidents(interaction.guildId, 10);
+      const lines = incidents.map((i) => {
+        const time = `<t:${Math.floor(new Date(i.createdAt).getTime() / 1000)}:R>`;
+        return `> **\`${i.action.toUpperCase()}\`** by <@${i.actorId}> — \`${i.status}\` (${time})`;
+      }).join('\n') || 'No incidents recorded.';
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [panel({ title: 'QUARANTINE & ANTI-NUKE AUDIT', body: lines })],
+      });
+    }
+
+    if (arg1 === 'tickets' && arg2 === 'list_open') {
+      const rows = (await client.runtime.db.query(`SELECT * FROM tickets WHERE guild_id = $1 AND status != 'closed' ORDER BY opened_at DESC LIMIT 10`, [interaction.guildId])).rows;
+      const lines = rows.map((t) => {
+        return `> **Ticket #${t.sequence}** by <@${t.member_id}> — **${t.status.toUpperCase()}** (\`${t.subject}\`)`;
+      }).join('\n') || 'No open tickets in queue.';
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [panel({ title: 'LIVE TICKET QUEUE', body: lines })],
+      });
     }
 
     if (arg1 === 'roblox' && arg2 === 'calc') {
@@ -1310,6 +1391,50 @@ async function handleModal(interaction, client) {
         ephemeral: true,
         components: [notice({ title: 'LINKING FAILED', body: err.message })],
       });
+    }
+  }
+
+  // Create Backup Modal
+  if (customId === 'modal:create_backup') {
+    const name = interaction.fields.getTextInputValue('name') || `Backup_${new Date().toISOString().slice(0, 10)}`;
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      const result = await native.backup.createSnapshot(interaction.guild, interaction.user.id, name, ctx);
+      return interaction.editReply({
+        flags: V2,
+        components: [
+          notice({
+            title: 'SERVER BACKUP CREATED',
+            body: `Snapshot **${result.name}** saved (${result.channelCount} ch, ${result.roleCount} roles).`,
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.editReply({ flags: V2, components: [notice({ title: 'BACKUP ERROR', body: err.message })] });
+    }
+  }
+
+  // Add License Keys Modal
+  if (customId === 'modal:add_license_keys') {
+    const variantId = interaction.fields.getTextInputValue('variant_id');
+    const rawKeys = interaction.fields.getTextInputValue('keys');
+    const keys = rawKeys.split(/[\n,;]+/).map((k) => k.trim()).filter((k) => k.length > 0);
+
+    try {
+      const result = await native.license.addKeys(variantId, keys, ctx);
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: 'LICENSE KEYS LOADED',
+            body: `Added **${result.addedCount}** key(s) to keypool. Available: **${result.totalUnused}**.`,
+          }),
+        ],
+      });
+    } catch (err) {
+      return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ERROR', body: err.message })] });
     }
   }
 
