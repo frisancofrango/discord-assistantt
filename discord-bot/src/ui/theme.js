@@ -201,33 +201,43 @@ export function renderAsciiSparkline(values = []) {
 /**
  * Build the Storefront panel from database products.
  */
-export function storefrontPanel({ products = [], cartItemCount = 0 }) {
+export function storefrontPanel({ products = [], cartItemCount = 0, currency = 'BRL' }) {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
-  c.addTextDisplayComponents(text('# THE STORE'));
-  c.addTextDisplayComponents(text('-# Minimal. Bold. High-conversion digital commerce.'));
+  c.addTextDisplayComponents(text('# 🛍️ LOJA & CATÁLOGO OFICIAL'));
+  c.addTextDisplayComponents(text('-# Produtos verificados com entrega automática e garantia oficial.'));
   c.addSeparatorComponents(divider(false));
 
   if (!products.length) {
-    c.addTextDisplayComponents(text('No products are currently available in the catalog.'));
+    c.addTextDisplayComponents(text('> *Nenhum produto disponível no catálogo no momento.*'));
+    c.addSeparatorComponents(spacer(false));
+    c.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        button.neutral('wallet:view', '💳 Minha Carteira'),
+        button.neutral('ranking:view', '🏆 Top Clientes')
+      )
+    );
+    c.addSeparatorComponents(divider(false));
+    c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
     return c;
   }
 
   const buttons = [];
   products.forEach((p, idx) => {
     const v = p.variants?.[0];
-    const priceStr = v ? formatMoney(v.priceMinor, v.currency) : 'Contact staff';
-    const stockStr = v && v.stock !== null ? `Stock: **${v.availableStock ?? v.stock}**` : 'Stock: **Unlimited**';
+    const priceStr = v ? formatMoney(v.priceMinor, v.currency || currency) : 'Consulte';
+    const stockStr = v && v.stock !== null ? `\`[${v.availableStock ?? v.stock} em estoque]\`` : '`[Estoque Ilimitado]`';
+    const deliveryStr = '`[🚚 Automática]`';
     const perks = p.metadata?.perks?.length
       ? '\n' + p.metadata.perks.map((pk) => `> ${THEME.glyph.check} ${pk}`).join('\n')
       : '';
 
     c.addTextDisplayComponents(
-      text(`## ${p.name} ${THEME.glyph.bullet} **${priceStr}**\n${p.description || 'Verified legitimate digital good.'}\n-# ${stockStr}${perks}`)
+      text(`## ${p.name} · **\`[${priceStr}]\`**\n${p.description || 'Produto digital verificado e garantido.'}\n-# ${stockStr} · ${deliveryStr}${perks}`)
     );
 
     if (v) {
-      buttons.push(button.primary(`buy:${v.id}`, `Buy ${p.name}`));
-      buttons.push(button.neutral(`cart:add:${v.id}`, `+ Add to Cart`));
+      buttons.push(button.primary(`buy:${v.id}`, `Comprar ${p.name}`));
+      buttons.push(button.neutral(`cart:add:${v.id}`, `🛒 + Carrinho`));
     }
 
     if (idx < products.length - 1) {
@@ -236,8 +246,8 @@ export function storefrontPanel({ products = [], cartItemCount = 0 }) {
   });
 
   // Global action bar (View Cart, Wallet)
-  buttons.push(button.neutral('cart:view', `🛒 View Cart (${cartItemCount})`));
-  buttons.push(button.neutral('wallet:view', '💳 My Wallet'));
+  buttons.push(button.neutral('cart:view', `🛒 Meu Carrinho (${cartItemCount})`));
+  buttons.push(button.neutral('wallet:view', '💳 Minha Carteira'));
 
   c.addSeparatorComponents(spacer(false));
   for (let i = 0; i < buttons.length; i += 5) {
@@ -246,7 +256,7 @@ export function storefrontPanel({ products = [], cartItemCount = 0 }) {
   }
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# Instant fulfillment upon verified payment. Accepts Wallet, PIX, Card & Stripe.'));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
   return c;
 }
 
@@ -411,30 +421,34 @@ export function walletPanel({ wallet = {}, transactions = [], currency = 'BRL', 
 /**
  * Build the Checkout panel.
  */
-export function checkoutPanel({ order, items = [], subtotalMinor = 0, currency = 'USD', walletBalanceMinor = 0 }) {
+export function checkoutPanel({ order, items = [], subtotalMinor = 0, currency = 'BRL', walletBalanceMinor = 0 }) {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
-  c.addTextDisplayComponents(text('# ORDER CHECKOUT'));
-  c.addTextDisplayComponents(text(`-# Order ID: \`${order.id}\``));
+  c.addTextDisplayComponents(text('# 💳 FINALIZAR PEDIDO'));
+  c.addTextDisplayComponents(text(`-# Pedido ID: \`${order.id}\` · Ambiente Seguro Ativo`));
   c.addSeparatorComponents(divider(false));
 
   const totalStr = formatMoney(subtotalMinor, currency);
   const walletBalStr = formatMoney(walletBalanceMinor, currency);
   const canPayWallet = walletBalanceMinor >= subtotalMinor;
 
-  const itemList = items.map((i) => `> ${THEME.glyph.bullet} **${i.name}** (x${i.quantity}) — ${formatMoney(i.quantity * i.unit_price_minor, currency)}`).join('\n');
+  const itemList = items.map((i) => `> \`${i.quantity}x\` **${i.name}** — **\`[${formatMoney(i.quantity * i.unit_price_minor, currency)}]\`**`).join('\n');
 
-  c.addTextDisplayComponents(text(`### Items in Order\n${itemList}\n\n### Total Due: **${totalStr}**\nYour Wallet Balance: **${walletBalStr}**`));
+  c.addTextDisplayComponents(text(
+    `### Itens do Pedido\n${itemList}\n\n` +
+    `### Total a Pagar: **\`[${totalStr}]\`**\n` +
+    `> Saldo Disponível em Carteira: **\`[${walletBalStr}]\`**`
+  ));
   c.addSeparatorComponents(divider(false));
 
   const buttons = [];
   if (canPayWallet) {
-    buttons.push(button.primary(`checkout:wallet:${order.id}`, '⚡ Pay with Wallet Balance'));
+    buttons.push(button.primary(`checkout:wallet:${order.id}`, '⚡ Pagar com Saldo'));
   } else {
-    buttons.push(button.neutral('wallet:deposit', '➕ Add Funds to Wallet'));
+    buttons.push(button.neutral('wallet:deposit', '➕ Adicionar Saldo'));
   }
-  buttons.push(button.primary(`checkout:pix:${order.id}`, '🇧🇷 Pay with Instant PIX'));
-  buttons.push(button.neutral(`checkout:card:${order.id}`, '💳 Pay with Card / Stripe'));
-  buttons.push(button.danger(`checkout:cancel:${order.id}`, 'Cancel Order'));
+  buttons.push(button.primary(`checkout:pix:${order.id}`, '🇧🇷 Pagar com PIX'));
+  buttons.push(button.neutral(`checkout:card:${order.id}`, '💳 Pagar com Cartão'));
+  buttons.push(button.danger(`checkout:cancel:${order.id}`, '❌ Cancelar'));
 
   c.addSeparatorComponents(spacer(false));
   for (let i = 0; i < buttons.length; i += 5) {
@@ -443,40 +457,40 @@ export function checkoutPanel({ order, items = [], subtotalMinor = 0, currency =
   }
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# By proceeding, you accept the server acceptable-use digital commerce terms.'));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
   return c;
 }
 
 /**
  * Build an Order Receipt panel.
  */
-export function orderReceiptPanel({ order, items = [], mechanism = 'instant', verified = true }) {
+export function orderReceiptPanel({ order, items = [], mechanism = 'instant', verified = true, currency = 'BRL' }) {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
-  c.addTextDisplayComponents(text('# ORDER RECEIPT'));
-  c.addTextDisplayComponents(text(`-# Verified Order: \`${order.id}\``));
+  c.addTextDisplayComponents(text('# 📜 COMPROVANTE DE ENTREGA'));
+  c.addTextDisplayComponents(text(`-# Pedido Verificado: \`${order.id}\``));
   c.addSeparatorComponents(divider(false));
 
-  const totalStr = formatMoney(order.subtotal_minor || order.subtotalMinor, order.currency);
-  const itemList = items.map((i) => `> ${THEME.glyph.check} **${i.name}** (x${i.quantity})`).join('\n');
+  const totalStr = formatMoney(order.subtotal_minor || order.subtotalMinor, order.currency || currency);
+  const itemList = items.map((i) => `> \`[✓]\` \`${i.quantity}x\` **${i.name}**`).join('\n');
 
   c.addTextDisplayComponents(text(
-    `### Status: **FULFILLED & VERIFIED**\n` +
-    `**Total Paid:** ${totalStr} via \`${order.provider || 'wallet'}\`\n\n` +
-    `### Delivered Items\n${itemList}\n\n` +
-    `Delivery Method: \`${mechanism}\`\n` +
-    `Timestamp: <t:${Math.floor(Date.now() / 1000)}:F>`
+    `### Status: **\`[✅ ENTREGUE COM SUCESSO]\`**\n` +
+    `**Total Pago:** **\`[${totalStr}]\`** via \`${order.provider || 'PIX / Carteira'}\`\n\n` +
+    `### Itens Entregues\n${itemList}\n\n` +
+    `> Método de Envio: \`[🚚 Automático]\` · Data: <t:${Math.floor(Date.now() / 1000)}:F>`
   ));
 
   c.addSeparatorComponents(spacer(false));
   c.addActionRowComponents(
     new ActionRowBuilder().addComponents(
-      button.primary('orders:list', '📜 My Orders'),
-      button.neutral('store:view', '🛍️ Browse Store')
+      button.primary('orders:list', '📜 Meus Pedidos'),
+      button.neutral('store:view', '🛍️ Ver Loja'),
+      button.neutral('ranking:view', '🏆 Top Clientes')
     )
   );
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# Thank you for your purchase! Open a ticket if you need assistance.'));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Processado pela **Azure OS ©**'));
   return c;
 }
 
@@ -485,31 +499,31 @@ export function orderReceiptPanel({ order, items = [], mechanism = 'instant', ve
  */
 export function robloxCalculatorPanel({ netRobux, grossPrice, feeAmount, effectiveNet, isNet = true }) {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
-  c.addTextDisplayComponents(text('# ROBLOX 70/30 FEE CALCULATOR'));
-  c.addTextDisplayComponents(text('-# Official Roblox marketplace 30% tax breakdown.'));
+  c.addTextDisplayComponents(text('# 🎮 CALCULADORA ROBLOX 70/30'));
+  c.addTextDisplayComponents(text('-# Discriminativo da taxa de 30% da plataforma Roblox.'));
   c.addSeparatorComponents(divider(false));
 
   const body = isNet
-    ? `To receive **${netRobux.toLocaleString()} Robux** net after Roblox takes 30%:\n\n` +
-      `> Set Gamepass / Asset Price: **${grossPrice.toLocaleString()} Robux**\n` +
-      `> Roblox Platform Cut (30%): **${feeAmount.toLocaleString()} Robux**\n` +
-      `> You Receive: **${effectiveNet.toLocaleString()} Robux**`
-    : `If your Gamepass is listed at **${grossPrice.toLocaleString()} Robux**:\n\n` +
-      `> Roblox Platform Cut (30%): **${feeAmount.toLocaleString()} Robux**\n` +
-      `> You Receive: **${effectiveNet.toLocaleString()} Robux**`;
+    ? `Para receber **\`[${netRobux.toLocaleString()} R$ Líquidos]\`** após a taxa de 30% do Roblox:\n\n` +
+      `> Preço do Gamepass a cadastrar: **\`[${grossPrice.toLocaleString()} Robux]\`**\n` +
+      `> Taxa retida pelo Roblox (30%): **\`[${feeAmount.toLocaleString()} Robux]\`**\n` +
+      `> Saldo Líquido que você recebe: **\`[${effectiveNet.toLocaleString()} Robux]\`**`
+    : `Se o seu Gamepass estiver listado por **\`[${grossPrice.toLocaleString()} Robux]\`**:\n\n` +
+      `> Taxa retida pelo Roblox (30%): **\`[${feeAmount.toLocaleString()} Robux]\`**\n` +
+      `> Saldo Líquido que você recebe: **\`[${effectiveNet.toLocaleString()} Robux]\`**`;
 
   c.addTextDisplayComponents(text(body));
   c.addSeparatorComponents(spacer(false));
 
   c.addActionRowComponents(
     new ActionRowBuilder().addComponents(
-      button.primary('roblox:link', '🔗 Link Roblox Account'),
-      button.neutral('store:view', '🛍️ View Robux Products')
+      button.primary('roblox:link', '🔗 Vincular Conta Roblox'),
+      button.neutral('store:view', '🛍️ Ver Produtos Robux')
     )
   );
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# Formula: Gross = ⌈Net / 0.7⌉. Exact calculation verified against Roblox mechanics.'));
+  c.addTextDisplayComponents(text('-# 🛡️ **Ambiente Seguro** · Fórmula Oficial: Gross = ⌈Net / 0.7⌉'));
   return c;
 }
 
