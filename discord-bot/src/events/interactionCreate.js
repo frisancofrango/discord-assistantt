@@ -547,14 +547,32 @@ async function handleButton(interaction, client) {
           ctx
         );
         const cart = await native.commerce.getCart(interaction.guildId, interaction.user.id);
+
+        // Check if server uses private cart channels
+        let channelLink = '';
+        if (interaction.guild && native.cartChannel) {
+          try {
+            const { channel } = await native.cartChannel.getOrCreateCartChannel({
+              guild: interaction.guild,
+              member: interaction.member,
+              variantId: null,
+              runtime: client.runtime,
+              ctx,
+            });
+            if (channel) {
+              channelLink = `\n\n👉 Acesse seu carrinho privado em: <#${channel.id}>`;
+            }
+          } catch { /* noop fallback */ }
+        }
+
         return interaction.reply({
           flags: V2,
           ephemeral: true,
           components: [
             notice({
-              title: 'ADDED TO CART',
-              body: `Added **${result.productName || 'Item'}** to your shopping cart (Quantity: ${result.quantity}).`,
-              footer: `Items reserved for ${native.commerce.config.reservationMinutes} minutes.`,
+              title: '🛒 PRODUTO ADICIONADO AO CARRINHO',
+              body: `Adicionado **${result.productName || 'Item'}** ao seu carrinho de compras (Qtd: ${result.quantity}).${channelLink}`,
+              footer: `Itens reservados por ${native.commerce.config.reservationMinutes} minutos.`,
             }),
             cartPanel({ cart, items: cart.items, subtotalMinor: cart.subtotalMinor, currency: cart.currency, expiresAt: cart.expiresAt }),
           ],
@@ -564,6 +582,17 @@ async function handleButton(interaction, client) {
           flags: V2,
           ephemeral: true,
           components: [notice({ title: 'COULD NOT ADD', body: err.message })],
+        });
+      }
+    }
+
+    if (arg1 === 'close') {
+      if (native.cartChannel) {
+        await native.cartChannel.closeCartChannel(interaction.channelId, 'cancelled', client);
+        return interaction.reply({
+          flags: V2,
+          ephemeral: true,
+          components: [notice({ title: 'CARRINHO FECHADO', body: 'O canal do carrinho está sendo encerrado.' })],
         });
       }
     }

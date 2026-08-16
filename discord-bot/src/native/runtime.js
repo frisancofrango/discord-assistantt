@@ -23,6 +23,8 @@ import { RoleService } from './roles.js';
 import { ModmailService } from './modmail.js';
 import { PixService } from './pix.js';
 import { SubscriptionService } from './subscription.js';
+import { CartChannelService } from './cart-channel.js';
+import { VendorService } from './vendor.js';
 
 export function createNativeRuntime({ db, queue, tools, config, logger, client, memory, paymentAdapters = {} }) {
   const analytics = new AnalyticsService({ db, retentionDays: config.native?.analyticsRetentionDays ?? 30 });
@@ -51,6 +53,8 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
   const modmail = new ModmailService({ db, logger });
   const pix = new PixService({ db, logger });
   const subscription = new SubscriptionService({ db, logger });
+  const cartChannel = new CartChannelService({ db, logger });
+  const vendor = new VendorService({ db, logger });
   let worker;
 
   function start() {
@@ -102,6 +106,8 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
     modmail,
     pix,
     subscription,
+    cartChannel,
+    vendor,
     start,
     close: async () => worker?.close(),
   };

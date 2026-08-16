@@ -85,3 +85,11 @@ test('brazilian pix and subscriptions migration persists pix invoices, subscript
   }
   assert.match(sql, /CHECK \(status IN/i);
 });
+
+test('brazilian enterprise flows migration persists commerce channels, active cart channels, and vendors', async () => {
+  const sql = await readFile(new URL('../migrations/016_brazilian_enterprise_flows.sql', import.meta.url), 'utf8');
+  for (const table of ['guild_commerce_channels', 'active_cart_channels', 'product_vendors']) {
+    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, 'i'), table);
+  }
+  assert.match(sql, /CHECK \(status IN/i);
+});
