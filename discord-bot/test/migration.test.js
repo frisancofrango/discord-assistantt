@@ -77,3 +77,11 @@ test('advanced moderation suite migration persists automod rules, infractions, s
   }
   assert.match(sql, /UNIQUE\(guild_id, rule_type\)/i);
 });
+
+test('brazilian pix and subscriptions migration persists pix invoices, subscriptions, and pix configs', async () => {
+  const sql = await readFile(new URL('../migrations/015_brazilian_pix_and_subscriptions.sql', import.meta.url), 'utf8');
+  for (const table of ['pix_invoices', 'member_role_subscriptions', 'guild_pix_config']) {
+    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, 'i'), table);
+  }
+  assert.match(sql, /CHECK \(status IN/i);
+});

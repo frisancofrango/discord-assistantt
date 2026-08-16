@@ -802,6 +802,43 @@ async function handleButton(interaction, client) {
       });
     }
 
+    if (arg1 === 'pix') {
+      const orderId = arg2;
+      const order = await native.commerce.getOrder(orderId);
+      const invoice = await native.pix.createInvoice({
+        orderId,
+        amountMinor: order.subtotal_minor,
+        currency: 'BRL',
+        description: `Order ${orderId.slice(0, 8)}`,
+        guildId: interaction.guildId,
+      });
+
+      const timeStr = `<t:${Math.floor(new Date(invoice.expiresAt).getTime() / 1000)}:R>`;
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          panel({
+            title: '🇧🇷 PAGAMENTO INSTANTÂNEO VIA PIX',
+            subtitle: `Pedido: ${orderId.slice(0, 8)} — R$ ${(invoice.amountMinor / 100).toFixed(2).replace('.', ',')}`,
+            body:
+              `Copie o código **PIX Copia e Cola** abaixo e efetue o pagamento no aplicativo do seu banco:\n\n` +
+              `\`\`\`\n${invoice.qrCode}\n\`\`\`\n` +
+              `> **Valor Total:** **\`R$ ${(invoice.amountMinor / 100).toFixed(2).replace('.', ',')}\`**\n` +
+              `> **Vencimento do QR Code:** ${timeStr}\n` +
+              `> **Status:** \`${invoice.status.toUpperCase()}\``,
+            buttons: [
+              button.primary(`pix:verify:${invoice.id}`, '🔄 Verificar Pagamento'),
+              button.neutral(`checkout:wallet:${orderId}`, '⚡ Pagar com Saldo Carteira'),
+              button.danger(`checkout:cancel:${orderId}`, 'Cancelar Pedido'),
+            ],
+            footer: 'Aprovação e entrega automática em menos de 2 segundos.',
+          }),
+        ],
+      });
+    }
+
     if (arg1 === 'crypto') {
       const orderId = arg2;
       const cryptoCur = arg3 || 'LTC';
@@ -940,6 +977,34 @@ async function handleButton(interaction, client) {
       });
     } catch (err) {
       return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ROLE ERROR', body: err.message })] });
+    }
+  }
+
+  // PIX operations
+  if (action === 'pix') {
+    if (arg1 === 'verify') {
+      const invoiceId = arg2;
+      const invoice = await native.pix.getInvoice(invoiceId);
+      if (!invoice) {
+        return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'FATURA NÃO ENCONTRADA', body: 'ID inválido.' })] });
+      }
+      if (invoice.status === 'approved') {
+        return interaction.reply({
+          flags: V2,
+          ephemeral: true,
+          components: [notice({ title: '✅ PAGAMENTO CONFIRMADO', body: `Seu pagamento via PIX foi aprovado e seu produto foi entregue com sucesso!` })],
+        });
+      }
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          notice({
+            title: '⏳ AGUARDANDO COMPENSAÇÃO PIX',
+            body: `Ainda não identificamos a compensação bancária do PIX para a fatura \`${invoiceId}\`.\nSe você já realizou o pagamento pelo app do seu banco, aguarde alguns instantes e tente novamente.`,
+          }),
+        ],
+      });
     }
   }
 

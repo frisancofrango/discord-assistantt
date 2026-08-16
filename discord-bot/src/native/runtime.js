@@ -21,6 +21,8 @@ import { AutomodService } from './automod.js';
 import { StickyService } from './sticky.js';
 import { RoleService } from './roles.js';
 import { ModmailService } from './modmail.js';
+import { PixService } from './pix.js';
+import { SubscriptionService } from './subscription.js';
 
 export function createNativeRuntime({ db, queue, tools, config, logger, client, memory, paymentAdapters = {} }) {
   const analytics = new AnalyticsService({ db, retentionDays: config.native?.analyticsRetentionDays ?? 30 });
@@ -47,6 +49,8 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
   const sticky = new StickyService({ db, logger });
   const roles = new RoleService({ db, logger });
   const modmail = new ModmailService({ db, logger });
+  const pix = new PixService({ db, logger });
+  const subscription = new SubscriptionService({ db, logger });
   let worker;
 
   function start() {
@@ -59,6 +63,7 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
         case 'commerce.release': return commerce.releaseExpiredCarts();
         case 'analytics.aggregate': return analytics.aggregate(data.day);
         case 'analytics.retention': return analytics.enforceRetention();
+        case 'subscription.expire': return subscription.enforceExpirations(client);
         case 'marketing.send': return marketing.send(data.campaignId, async (payload) => tools.invoke('direct.message', { userId: payload.memberId, content: payload.template.content }, { client, idempotencyKey: `campaign:${data.campaignId}:${payload.memberId}`, autonomy: 'operator', approval: { status: 'approved' }, consent: true, actor: { authenticated: true, guildMember: true, isOwner: true, permissions: ['SendMessages'] } }));
         default: throw new Error(`Unknown native job ${job.name}`);
       }
@@ -95,6 +100,8 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
     sticky,
     roles,
     modmail,
+    pix,
+    subscription,
     start,
     close: async () => worker?.close(),
   };
