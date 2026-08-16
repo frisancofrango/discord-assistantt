@@ -15,6 +15,8 @@ import { SecurityService } from './security.js';
 import { AffiliateService } from './affiliate.js';
 import { OperatingHoursService } from './schedule.js';
 import { LoyaltyService } from './loyalty.js';
+import { EscrowService } from './escrow.js';
+import { CryptoService } from './crypto.js';
 
 export function createNativeRuntime({ db, queue, tools, config, logger, client, memory, paymentAdapters = {} }) {
   const analytics = new AnalyticsService({ db, retentionDays: config.native?.analyticsRetentionDays ?? 30 });
@@ -35,6 +37,8 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
   const affiliate = new AffiliateService({ db, logger });
   const schedule = new OperatingHoursService({ db, logger });
   const loyalty = new LoyaltyService({ db, logger });
+  const escrow = new EscrowService({ db, logger });
+  const crypto = new CryptoService({ db, logger });
   let worker;
 
   function start() {
@@ -77,6 +81,8 @@ export function createNativeRuntime({ db, queue, tools, config, logger, client, 
     affiliate,
     schedule,
     loyalty,
+    escrow,
+    crypto,
     start,
     close: async () => worker?.close(),
   };

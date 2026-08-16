@@ -61,3 +61,11 @@ test('marketing schedules and loyalty migration persists operating hours, channe
   assert.match(sql, /UNIQUE\(guild_id, channel_id\)/i);
   assert.match(sql, /UNIQUE\(order_id\)/i);
 });
+
+test('escrow and crypto migration persists escrow deals and cryptocurrency invoices', async () => {
+  const sql = await readFile(new URL('../migrations/013_escrow_and_crypto.sql', import.meta.url), 'utf8');
+  for (const table of ['escrow_deals', 'crypto_invoices']) {
+    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\b`, 'i'), table);
+  }
+  assert.match(sql, /CHECK \(status IN/i);
+});

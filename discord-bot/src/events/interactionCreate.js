@@ -802,6 +802,39 @@ async function handleButton(interaction, client) {
       });
     }
 
+    if (arg1 === 'crypto') {
+      const orderId = arg2;
+      const cryptoCur = arg3 || 'LTC';
+      const order = await native.commerce.getOrder(orderId);
+      const invoice = await native.crypto.createInvoice({
+        orderId,
+        cryptoCurrency: cryptoCur,
+        amountUsdMinor: order.subtotal_minor,
+      });
+
+      return interaction.reply({
+        flags: V2,
+        ephemeral: true,
+        components: [
+          panel({
+            title: `🪙 CRYPTO INVOICE (${invoice.cryptoCurrency})`,
+            subtitle: `Order ${orderId.slice(0, 8)} — Send ${invoice.cryptoAmount} ${invoice.cryptoCurrency}`,
+            body:
+              `Please send the exact amount to the deposit address below:\n\n` +
+              `> **Amount:** **\`${invoice.cryptoAmount} ${invoice.cryptoCurrency}\`** (${formatMoney(order.subtotal_minor, order.currency)})\n` +
+              `> **Deposit Address:**\n\`\`\`\n${invoice.depositAddress}\n\`\`\`\n` +
+              `> **Expires:** <t:${Math.floor(new Date(invoice.expiresAt).getTime() / 1000)}:R>\n` +
+              `> **Status:** \`${invoice.status.toUpperCase()}\``,
+            buttons: [
+              button.primary(`checkout:wallet:${orderId}`, '⚡ Or Pay with Wallet Balance'),
+              button.danger(`checkout:cancel:${orderId}`, 'Cancel Order'),
+            ],
+            footer: 'Automatic blockchain settlement webhook connected.',
+          }),
+        ],
+      });
+    }
+
     if (arg1 === 'cancel') {
       const orderId = arg2;
       await client.runtime.db.query(
@@ -812,6 +845,80 @@ async function handleButton(interaction, client) {
         flags: V2,
         components: [notice({ title: 'ORDER CANCELLED', body: 'This order has been cancelled and unreserved.' })],
       });
+    }
+  }
+
+  // Escrow operations
+  if (action === 'escrow') {
+    const dealId = arg2;
+    if (arg1 === 'fund') {
+      try {
+        const funded = await native.escrow.depositAndLock({ dealId, buyerId: interaction.user.id, walletService: native.wallet }, ctx);
+        return interaction.reply({
+          flags: V2,
+          ephemeral: true,
+          components: [
+            notice({
+              title: 'ESCROW FUNDED & LOCKED',
+              body: `Successfully funded **${formatMoney(funded.amountMinor, funded.currency)}** for deal \`${dealId}\`.\nFunds are locked safely in bot vault until you release or dispute.`,
+            }),
+          ],
+        });
+      } catch (err) {
+        return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'FUNDING FAILED', body: err.message })] });
+      }
+    }
+
+    if (arg1 === 'deliver') {
+      try {
+        await native.escrow.markDelivered({ dealId, sellerId: interaction.user.id }, ctx);
+        return interaction.reply({
+          flags: V2,
+          ephemeral: true,
+          components: [
+            notice({
+              title: 'DELIVERY CONFIRMED',
+              body: `Marked goods as delivered for deal \`${dealId}\`. Waiting for buyer release confirmation.`,
+            }),
+          ],
+        });
+      } catch (err) {
+        return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'ACTION FAILED', body: err.message })] });
+      }
+    }
+
+    if (arg1 === 'release') {
+      try {
+        const released = await native.escrow.releaseEscrow({ dealId, buyerId: interaction.user.id, walletService: native.wallet }, ctx);
+        return interaction.reply({
+          flags: V2,
+          components: [
+            notice({
+              title: 'ESCROW RELEASED',
+              body: `Released **${formatMoney(released.amountMinor, released.currency)}** directly to seller <@${released.sellerId}>.\nTrade completed successfully.`,
+            }),
+          ],
+        });
+      } catch (err) {
+        return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'RELEASE FAILED', body: err.message })] });
+      }
+    }
+
+    if (arg1 === 'dispute') {
+      try {
+        await native.escrow.disputeDeal({ dealId, actorId: interaction.user.id, reason: 'Dispute opened by participant' }, ctx);
+        return interaction.reply({
+          flags: V2,
+          components: [
+            notice({
+              title: '⚠️ ESCROW DISPUTE OPENED',
+              body: `Deal \`${dealId}\` has been marked as **DISPUTED**.\nStaff moderators will review evidence and arbitrate resolution.`,
+            }),
+          ],
+        });
+      } catch (err) {
+        return interaction.reply({ flags: V2, ephemeral: true, components: [notice({ title: 'DISPUTE FAILED', body: err.message })] });
+      }
     }
   }
 
