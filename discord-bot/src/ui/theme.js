@@ -455,32 +455,45 @@ export function robloxCalculatorPanel({ netRobux, grossPrice, feeAmount, effecti
 export function helpMenuPanel() {
   const c = new ContainerBuilder().setAccentColor(THEME.accent);
   c.addTextDisplayComponents(text('# AZURE SYSTEM GUIDE'));
-  c.addTextDisplayComponents(text('-# Complete operating manual & slash command reference.'));
+  c.addTextDisplayComponents(text('-# Complete operating manual & 37 slash command reference.'));
   c.addSeparatorComponents(divider(false));
 
   c.addTextDisplayComponents(text(
-    `### 🛒 Commerce & Store\n` +
-    `> \`/sales\` or \`/store\` — Open the dynamic storefront with live inventory\n` +
-    `> \`/cart\` — Manage active shopping cart & stock reservations\n` +
-    `> \`/wallet\` — Inspect digital wallet balance, deposit, withdraw & transfer\n` +
-    `> \`/orders\` — View your purchase history & verified receipts\n` +
-    `> \`/roblox\` — 70/30 marketplace tax calculator & account linking\n\n` +
-    `### 🎫 Support & Community\n` +
-    `> \`/ticket open\` — Open a private customer support ticket\n` +
-    `> \`/ticket close\` — Close ticket & generate cryptographic transcript\n` +
-    `> \`/verify\` — Complete arithmetic captcha to access the server\n` +
-    `> \`/announce\` — Send a styled Components V2 server broadcast\n\n` +
-    `### 🛡️ Moderation\n` +
-    `> \`/warn\` — Issue an official warning with DM notification\n` +
-    `> \`/timeout\` — Apply or lift temporary member timeout\n` +
-    `> \`/kick\` — Safely remove member with policy audit\n` +
-    `> \`/ban\` — Permanently ban member with reason log\n` +
-    `> \`/purge\` — Bulk clean recent channel messages\n\n` +
-    `### ⚙️ Operator Console\n` +
-    `> \`/panel\` — Full visual multi-tab operator control center\n` +
-    `> \`/product\` — Manage catalog products, variants, pricing & stock\n` +
-    `> \`/ai\` — AI Studio assistant, persona, and knowledge management\n` +
-    `> \`/admin\` — Inspect system health, budget, approvals, policies & memory`
+    `### 🇧🇷 Brazilian Commerce & PIX Engine\n` +
+    `> \`/pix\` — Manage instant BCB PIX Copia e Cola & QR Code gateway\n` +
+    `> \`/storeconfig\` — Configure cart category, review channel & default currency\n` +
+    `> \`/vendor\` — Multi-seller partner registration & automated split payouts\n` +
+    `> \`/ranking\` — Live top customer spenders leaderboard with VIP medals\n` +
+    `> \`/sales\` — Open dynamic storefront with live stock inventory\n` +
+    `> \`/cart\` — Shopping cart management & stock reservations\n` +
+    `> \`/wallet\` — Digital wallet balance, deposits, withdrawals & P2P transfers\n` +
+    `> \`/orders\` — Customer purchase history & verified cryptographic receipts\n` +
+    `> \`/coupon\` — Promo discount codes & minimum purchase limits\n` +
+    `> \`/escrow\` — P2P safe trade rooms with escrow vault & arbitration\n` +
+    `> \`/license\` — Digital license serial pool & automated key dispenser\n` +
+    `> \`/affiliate\` — Referral links & commission rewards tracking\n\n` +
+    `### 🛡️ Moderation, Defense & AutoMod\n` +
+    `> \`/automod\` — Anti-spam velocity, invite link blocking & word filters\n` +
+    `> \`/sticky\` — Floating rules message pinned to channel bottom\n` +
+    `> \`/roles\` — Self-service interactive button & select role menus\n` +
+    `> \`/modmail\` — Private member-to-staff DM relay & forum tickets\n` +
+    `> \`/security\` — Anti-nuke velocity guardian, whitelist & lockdown\n` +
+    `> \`/warn\` — Formal member warning logger with DM notice\n` +
+    `> \`/timeout\` — Temporary member timeout enforcement\n` +
+    `> \`/kick\` & \`/ban\` — Policy-audited member removal & logging\n` +
+    `> \`/purge\` — Bulk channel message cleanup\n\n` +
+    `### ⏰ Operations, Marketing & AI Hub\n` +
+    `> \`/panel\` — Visual 11-tab Operator Control Center\n` +
+    `> \`/channel\` — Shift working hours, out-of-office banners & night-mode locks\n` +
+    `> \`/loyalty\` — VIP cashback tiers (1% - 10%) & reward progress\n` +
+    `> \`/marketing\` — Time-limited flash drops with countdowns & review incentives\n` +
+    `> \`/backup\` — Server template snapshots & OAuth2 member restore\n` +
+    `> \`/roblox\` — 70/30 marketplace tax calculator & Roblox account link\n` +
+    `> \`/ticket\` — Customer support desk & cryptographic transcripts\n` +
+    `> \`/verify\` — Arithmetic captcha gateway for anti-bot protection\n` +
+    `> \`/ai\` — Autonomous AI Studio (Personas, RAG Learn, Prompt Sandbox)\n` +
+    `> \`/admin\` — System health, autonomy budget & policies\n` +
+    `> \`/task\` — Multi-step autonomous agent goal runner`
   ));
 
   c.addSeparatorComponents(spacer(false));
@@ -489,12 +502,13 @@ export function helpMenuPanel() {
       button.primary('panel:tab:commerce', '⚙️ Open Control Panel'),
       button.neutral('store:view', '🛍️ Store'),
       button.neutral('cart:view', '🛒 Cart'),
-      button.neutral('wallet:view', '💳 Wallet')
+      button.neutral('wallet:view', '💳 Wallet'),
+      button.neutral('ranking:view', '🏆 Top Spenders')
     )
   );
 
   c.addSeparatorComponents(divider(false));
-  c.addTextDisplayComponents(text('-# Pure monochrome Components V2 interface.'));
+  c.addTextDisplayComponents(text('-# Pure monochrome Components V2 interface · 37 active slash commands.'));
   return c;
 }
 
